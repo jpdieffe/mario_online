@@ -73,17 +73,18 @@ export function overlaps(a, b) {
 }
 
 /**
- * Check if entity A is landing on top of entity B
- * (A falling down, bottom edge previously above B top edge).
+ * Check if entity A is stomping entity B:
+ * A must be falling (vy > 0) and A's bottom must be
+ * in the TOP HALF of B after overlap is confirmed.
+ * No prevY needed – simpler and more reliable.
  */
-export function stompCheck(player, enemy, prevPlayerY) {
+export function stompCheck(player, enemy) {
   if (player.vy <= 0) return false;
-  const prevBottom = prevPlayerY + player.h;
-  const currBottom = player.y  + player.h;
-  return prevBottom <= enemy.y + 6 &&
-         currBottom >= enemy.y     &&
-         player.x + player.w > enemy.x + 4 &&
-         player.x < enemy.x + enemy.w - 4;
+  const playerBottom = player.y + player.h;
+  const enemyMid     = enemy.y + enemy.h * 0.5;
+  return playerBottom <= enemyMid &&
+         player.x + player.w > enemy.x + 2 &&
+         player.x < enemy.x + enemy.w - 2;
 }
 
 /**

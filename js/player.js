@@ -12,7 +12,7 @@ import { Sprites, flipH } from './sprites.js';
 const SMALL_W = 24;
 const SMALL_H = 28;
 const BIG_W   = 24;
-const BIG_H   = 56;
+const BIG_H   = 28;  // same height – sprite stays on ground, no floating
 const INVULN_FRAMES = 120;
 const WALK_ANIM_SPD = 6;  // frames per step
 const FIRE_COOLDOWN = 24;
@@ -209,8 +209,7 @@ export class Player {
     } else {
       this.power = POWER.SMALL;
       this.w = SMALL_W;
-      this.y += BIG_H - SMALL_H; // adjust y when shrinking
-      this.h = SMALL_H;
+      this.h = SMALL_H;  // no y-shift needed (same height)
       this.invuln = INVULN_FRAMES;
       this._events = this._events || [];
       this._events.push({ type: 'HURT' });
@@ -255,11 +254,9 @@ export class Player {
   grow(newPower) {
     if (newPower <= this.power) return;
     this.power = newPower;
-    if (this.big) {
-      this.w = BIG_W;
-      this.y -= (BIG_H - SMALL_H);  // grow upward
-      this.h = BIG_H;
-    }
+    // w/h stay the same (BIG_H === SMALL_H); sprite changes visually
+    this.w = BIG_W;
+    this.h = BIG_H;
   }
 
   drainEvents() {
@@ -276,7 +273,7 @@ export class Player {
     const sx = this.x - camera.x;
     const sy = this.y - camera.y;
 
-    const bigOff = this.big ? -24 : 0; // sprite is 32px tall, entity may differ
+    const bigOff = 0; // hitbox and sprite are the same height now
 
     let sprFn;
     if (this.isLuigi) {
@@ -333,17 +330,29 @@ export class Player {
     };
   }
 
-  /** Apply auth state from host. */
+  /** Apply auth state from host.
+   * Hard-snap non-position fields; lerp x/y to avoid tab-switch teleporting. */
   applyState(s) {
-    this.x    = s.x;
-    this.y    = s.y;
+    // Position: lerp if close, snap if far (tab was hidden = large gap)
+    const dx = s.x - this.x;
+    const dy = s.y - this.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 120) {
+      // Far off – hard snap (first sync or respawn)
+      this.x = s.x;
+      this.y = s.y;
+    } else {
+      // Smooth correction
+      this.x += dx * 0.25;
+      this.y += dy * 0.25;
+    }
     this.vx   = s.vx;
     this.vy   = s.vy;
     this.state = s.state;
     if (s.power !== undefined && s.power !== this.power) {
       this.power = s.power;
-      this.w = s.power >= POWER.BIG ? BIG_W : SMALL_W;
-      this.h = s.power >= POWER.BIG ? BIG_H : SMALL_H;
+      this.w = BIG_W;  // same for both states
+      this.h = BIG_H;
     }
     this.facingRight = s.facingRight;
     this.onGround    = s.onGround;

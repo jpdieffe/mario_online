@@ -264,8 +264,7 @@ export class Game {
         if (enemy.dead || enemy.remove) continue;
         if (!overlaps(player, enemy)) continue;
 
-        const prevY = player._prevY ?? player.y;
-        if (stompCheck(player, enemy, prevY)) {
+        if (stompCheck(player, enemy)) {
           // Stomp
           let pts = 0;
           if (enemy instanceof Goomba) pts = enemy.stomp();

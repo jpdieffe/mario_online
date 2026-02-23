@@ -125,6 +125,15 @@ function startGame(playerIndex, peerCode = null) {
   game.setInput(input);
   game.load(0);
 
+  // Pause loop when tab is hidden to prevent position-jump on refocus
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    } else {
+      if (!rafId) loop();
+    }
+  });
+
   // Game loop
   function loop() {
     rafId = requestAnimationFrame(loop);
