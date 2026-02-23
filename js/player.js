@@ -3,7 +3,7 @@
 // ============================================================
 
 import {
-  TILE, GRAVITY, POWER, PSTATE,
+  TILE, GRAVITY, MAX_FALL, POWER, PSTATE,
 } from './constants.js';
 import { CFG } from './config.js';
 import { resolveEntity, levelBoundaryCheck } from './physics.js';
@@ -165,8 +165,9 @@ export class Player {
       }
     } else {
       this.jumpHold = 0;
-      // Cut jump short
-      if (this.vy < -4) this.vy = Math.max(this.vy, -4);
+      // Cut jump short – scale with JUMP_VEL so debug panel affects it
+      const cutoff = CFG.JUMP_VEL * 0.55;
+      if (this.vy < cutoff) this.vy = Math.max(this.vy, cutoff);
     }
 
     // Fire
@@ -271,7 +272,7 @@ export class Player {
 
   _updateDead(level, dt) {
     this.deadTimer += dt;
-    this.vy = Math.min(this.vy + GRAVITY * dt, MAX_FALL);
+    this.vy = Math.min(this.vy + GRAVITY * dt, CFG.MAX_FALL);
     this.y += this.vy;
     if (this.deadTimer > 180 && !this._deathHandled) {
       this._deathHandled = true;
@@ -439,7 +440,7 @@ class Fireball {
 
   update(level, dt) {
     this._anim += dt;
-    this.vy = Math.min(this.vy + GRAVITY * dt, MAX_FALL);
+    this.vy = Math.min(this.vy + GRAVITY * dt, MAX_FALL);  // fireball uses static cap
 
     // Reset collision flags before resolve
     this.onGround   = false;
