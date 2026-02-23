@@ -39,16 +39,19 @@ btnHost.addEventListener('click', () => {
   net.onPeerId = (id) => {
     peerIdDisplay.textContent = id;
     hostCodeArea.classList.remove('hidden');
-  };
-
-  net.onConnected = () => {
-    waitingMsg.textContent = 'Player 2 connected! Starting…';
-    setTimeout(() => startGame(0), 800);
+    waitingMsg.textContent = 'Game started! Waiting for Player 2…';
+    // Start immediately – P2 can join later
+    startGame(0, id);
   };
 
   net.onError = (err) => {
-    setStatus('Connection error: ' + err.type, true);
-    resetLobby();
+    if (game) {
+      // Already in-game, show non-fatal notice
+      console.warn('PeerJS error:', err);
+    } else {
+      setStatus('Connection error: ' + err.type, true);
+      resetLobby();
+    }
   };
 
   net.host();
@@ -100,15 +103,26 @@ joinInput.addEventListener('keydown', (e) => {
 
 // ── Game start ────────────────────────────────────────────
 
-function startGame(playerIndex) {
+function startGame(playerIndex, peerCode = null) {
   lobbyEl.classList.add('hidden');
   gameEl.classList.remove('hidden');
 
   input = new Input();
   game  = new Game(canvas, net, playerIndex);
 
-  // Forward disconnect after game start
-  net.onDisconnected = () => showDisconnect();
+  // Give the game the peer code so it can display it on-canvas
+  if (peerCode) game._peerCode = peerCode;
+
+  // When P2 connects mid-game, activate them
+  net.onConnected = () => {
+    waitingMsg.textContent = 'Player 2 connected!';
+    if (game) game.onPeerJoined();
+  };
+
+  // Forward disconnect
+  net.onDisconnected = () => {
+    if (game) showDisconnect();
+  };
 
   game.setInput(input);
   game.load(0);

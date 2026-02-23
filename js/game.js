@@ -45,6 +45,11 @@ export class Game {
       left: false, right: false, jump: false, run: false, fire: false,
     };
 
+    // Host starts solo – P2 activates on connection
+    // Client is always connected (they joined to get here)
+    this.peerConnected = !this.isHost;
+    this._peerCode     = null;  // shown on-canvas while waiting
+
     this._canvas_scale = 1;
     this._resize();
     window.addEventListener('resize', () => this._resize());
@@ -57,6 +62,24 @@ export class Game {
 
   setInput(inputInstance) {
     this._localInput = inputInstance;
+  }
+
+  /** Attach (or replace) the network after game has already started. */
+  setNet(network) {
+    this.net = network;
+    if (network) network.onMessage = (msg) => this._handleNetMsg(msg);
+  }
+
+  /** Call when a peer connects mid-game (host only). */
+  onPeerJoined() {
+    this.peerConnected = true;
+    this._peerCode     = null;
+    // Respawn P2 at spawn point
+    const p2 = this.players[1];
+    p2.respawn();
+    // Immediately send full state so client can sync
+    if (this.net) this._sendStateSync();
+    this._showMsg('Player 2 joined! 👋');
   }
 
   /** Load a level (or reload current one). */
@@ -124,8 +147,8 @@ export class Game {
 
     const localSnap = this._localInput ? this._localInput.snapshot() : {};
 
-    // Send local input to remote peer (every frame)
-    if (this.net) {
+    // Send local input to remote peer (every frame, only when connected)
+    if (this.net && this.peerConnected) {
       this.net.send({ type: MSG.INPUT, frame: this._frame, keys: localSnap });
     }
 
@@ -133,8 +156,10 @@ export class Game {
     localP.update(this._applyInputSnap(localP, localSnap), this.level);
 
     if (this.isHost) {
-      // Host: update remote player with received input
-      remoteP.update(this._applyInputSnap(remoteP, this._remoteInput), this.level);
+      // Host: update remote player only when someone is connected
+      if (this.peerConnected) {
+        remoteP.update(this._applyInputSnap(remoteP, this._remoteInput), this.level);
+      }
 
       // Update enemies
       for (const e of this.enemies) e.update(this.level, 1);
@@ -151,16 +176,18 @@ export class Game {
       this._processPlayerEvents();
 
       // Periodic full-state sync to client
-      this._syncTimer++;
-      if (this._syncTimer >= SYNC_RATE) {
-        this._syncTimer = 0;
-        this._sendStateSync();
+      if (this.peerConnected) {
+        this._syncTimer++;
+        if (this._syncTimer >= SYNC_RATE) {
+          this._syncTimer = 0;
+          this._sendStateSync();
+        }
       }
 
-      // Win condition
+      // Win condition (P2 only counts if connected)
+      const p2AtGoal = this.peerConnected && remoteP.x / TILE > this.level.goalCol;
       if (this.level.goalCol > 0 &&
-          (localP.x / TILE > this.level.goalCol ||
-           remoteP.x / TILE > this.level.goalCol)) {
+          (localP.x / TILE > this.level.goalCol || p2AtGoal)) {
         this._winTimer++;
         if (this._winTimer > 90) this._onLevelClear();
       }
@@ -180,7 +207,11 @@ export class Game {
     this.scorePops = this.scorePops.filter(s => !s.dead);
 
     this.level.update(1);
-    this.camera.follow(this.players);
+    // Only follow active players (don't let inactive P2 drag camera)
+    const activePlayers = this.peerConnected
+      ? this.players
+      : [this.players[this.localIdx]];
+    this.camera.follow(activePlayers);
 
     // Update HUD
     this._updateHUD();
@@ -198,7 +229,10 @@ export class Game {
   }
 
   _handleCollisions() {
-    for (const player of this.players) {
+    const activePlayers = this.peerConnected
+      ? this.players
+      : [this.players[this.localIdx]];
+    for (const player of activePlayers) {
       if (player.dead) continue;
 
       // Player ↔ coins
@@ -279,7 +313,10 @@ export class Game {
   }
 
   _processPlayerEvents() {
-    for (const player of this.players) {
+    const activePlayers = this.peerConnected
+      ? this.players
+      : [this.players[this.localIdx]];
+    for (const player of activePlayers) {
       const evts = player.drainEvents();
       for (const evt of evts) {
         if (evt.type === 'BLOCK_HIT') {
@@ -474,6 +511,19 @@ export class Game {
     // Tiles
     this.level.draw(ctx, cam);
 
+    // Waiting-for-P2 overlay (host solo mode)
+    if (this.isHost && !this.peerConnected && this._peerCode) {
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(0, 0, w, 56);
+      ctx.fillStyle = '#E8C84A';
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('Waiting for P2 — Share code:', 12, 22);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 18px monospace';
+      ctx.fillText(this._peerCode, 12, 46);
+    }
+
     // Coins
     for (const c of this.coins) c.draw(ctx, cam);
 
@@ -483,8 +533,9 @@ export class Game {
     // Enemies
     for (const e of this.enemies) e.draw(ctx, cam);
 
-    // Players
-    for (const p of this.players) p.draw(ctx, cam);
+    // Players (only draw P2 if peer is connected)
+    this.players[this.localIdx].draw(ctx, cam);
+    if (this.peerConnected) this.players[1 - this.localIdx].draw(ctx, cam);
 
     // Particles
     for (const p of this.particles) p.draw(ctx, cam);
@@ -520,7 +571,7 @@ export class Game {
   _updateHUD() {
     const p1 = this.players[0];
     const p2 = this.players[1];
-    const totalScore = p1.score + p2.score;
+    const totalScore = p1.score + (this.peerConnected ? p2.score : 0);
 
     const safe = (id, v) => {
       const el = document.getElementById(id);
@@ -529,9 +580,15 @@ export class Game {
     safe('p1-coins', p1.coins);
     safe('p1-lives', p1.lives);
     safe('p1-power', ['', '🍄', '🔥'][p1.power] ?? '');
-    safe('p2-coins', p2.coins);
-    safe('p2-lives', p2.lives);
-    safe('p2-power', ['', '🍄', '🔥'][p2.power] ?? '');
+    if (this.peerConnected) {
+      safe('p2-coins', p2.coins);
+      safe('p2-lives', p2.lives);
+      safe('p2-power', ['', '🍄', '🔥'][p2.power] ?? '');
+    } else {
+      safe('p2-coins', '—');
+      safe('p2-lives', '—');
+      safe('p2-power', '');
+    }
     safe('score-val', totalScore);
   }
 
