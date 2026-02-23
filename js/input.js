@@ -34,6 +34,7 @@ export class Input {
     this._onDown = (e) => {
       if (this.chatMode) {
         // Intercept all keys while typing
+        e.preventDefault();
         e.stopPropagation();
         if (e.key === 'Enter') {
           const txt = this.chatBuffer.trim();

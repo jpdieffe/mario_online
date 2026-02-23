@@ -769,45 +769,59 @@ export class Game {
   }
 
   _drawChatWindow(ctx) {
-    if (this._chatLog.length === 0 && !(this._localInput?.chatMode)) return;
-
-    const CHAT_W = 200;
+    const CHAT_W = 220;
     const CHAT_X = CANVAS_W - CHAT_W - 8;
     const CHAT_Y = 8;
-    const LINE_H = 13;
-    const PAD    = 6;
+    const LINE_H = 16;
+    const PAD    = 7;
+    const FONT   = '11px monospace';
 
     const inputOpen = this._localInput?.chatMode;
     const lines = this._chatLog.map(e => ({ label: e.name + ': ' + e.text, pid: e.pid }));
-    const totalLines = lines.length + (inputOpen ? 1 : 0);
-    if (totalLines === 0) return;
 
-    const boxH = totalLines * LINE_H + PAD * 2 + (inputOpen ? 4 : 0);
+    // Always show a small Y-hint when idle and no log
+    if (!inputOpen && lines.length === 0) {
+      ctx.save();
+      ctx.font = '10px monospace';
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.textAlign = 'right';
+      ctx.fillText('[Y] chat', CANVAS_W - 8, 22);
+      ctx.restore();
+      return;
+    }
+
+    const totalLines = lines.length + (inputOpen ? 1 : 0);
+    const boxH = totalLines * LINE_H + PAD * 2;
 
     ctx.save();
-    // Transparent background — just a faint tint so text is readable
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    ctx.fillRect(CHAT_X, CHAT_Y, CHAT_W, boxH);
 
-    ctx.font = '9px sans-serif';
+    // Dark background
+    ctx.fillStyle = 'rgba(0,0,0,0.68)';
+    ctx.fillRect(CHAT_X, CHAT_Y, CHAT_W, boxH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(CHAT_X, CHAT_Y, CHAT_W, boxH);
+
+    ctx.font = FONT;
     ctx.textAlign = 'left';
-    const colors = ['#1565C0', '#2E7D32'];
+    const colors = ['#60AAFF', '#66EE88'];
 
     for (let i = 0; i < lines.length; i++) {
       const { label, pid } = lines[i];
-      ctx.fillStyle = colors[pid] ?? '#222';
-      ctx.fillText(label, CHAT_X + PAD, CHAT_Y + PAD + (i + 1) * LINE_H - 3);
+      ctx.fillStyle = colors[pid] ?? '#eee';
+      ctx.fillText(label, CHAT_X + PAD, CHAT_Y + PAD + (i + 1) * LINE_H - 4);
     }
 
     // Chat input line
     if (inputOpen) {
-      const iy = CHAT_Y + PAD + lines.length * LINE_H + 4;
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.fillRect(CHAT_X + PAD - 2, iy - 10, CHAT_W - PAD * 2 + 4, LINE_H + 2);
-      const cursor = Math.floor(Date.now() / 500) % 2 === 0 ? '|' : '';
-      ctx.fillStyle = '#000';
-      ctx.font = 'bold 9px sans-serif';
-      ctx.fillText('▶ ' + this._localInput.chatBuffer + cursor, CHAT_X + PAD, iy);
+      const iy = CHAT_Y + PAD + lines.length * LINE_H;
+      // Slightly lighter bg for the input row
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.fillRect(CHAT_X + 1, iy - LINE_H + 3, CHAT_W - 2, LINE_H);
+      const cursor = Math.floor(Date.now() / 500) % 2 === 0 ? '█' : ' ';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText('> ' + this._localInput.chatBuffer + cursor, CHAT_X + PAD, iy + LINE_H - 8);
     }
 
     ctx.restore();
