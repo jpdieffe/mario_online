@@ -193,8 +193,10 @@ export class Game {
       }
 
     } else {
-      // Client: just animate remote player (host will correct state)
-      // Client doesn't simulate enemies / physics for remote entities
+      // Client: simulate enemies locally so they move smoothly;
+      // host will correct positions via state sync every SYNC_RATE frames.
+      for (const e of this.enemies) e.update(this.level, 1);
+      this.enemies = this.enemies.filter(e => !e.remove);
     }
 
     // Common: update coins, particles, score pops
