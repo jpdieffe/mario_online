@@ -193,10 +193,12 @@ export class Game {
       }
 
     } else {
-      // Client: simulate enemies locally so they move smoothly;
-      // host will correct positions via state sync every SYNC_RATE frames.
+      // Client: simulate enemies locally + run collisions for local player.
+      // Host state sync every SYNC_RATE frames corrects any drift.
       for (const e of this.enemies) e.update(this.level, 1);
       this.enemies = this.enemies.filter(e => !e.remove);
+      this._handleCollisions();
+      this._processPlayerEvents();
     }
 
     // Common: update coins, particles, score pops
@@ -245,7 +247,7 @@ export class Game {
           player.score += 200;
           this._addScorePop(coin.x, coin.y, '200');
           if (player.coins % 100 === 0) player.lives++;
-          if (this.net) this.net.send({ type: MSG.EVENT, event: 'COIN', pid: player.id, score: player.score });
+          if (this.isHost && this.net) this.net.send({ type: MSG.EVENT, event: 'COIN', pid: player.id, score: player.score });
         }
       }
 
@@ -257,7 +259,7 @@ export class Game {
           const pts = 1000;
           player.score += pts;
           this._addScorePop(pu.x, pu.y, '+' + pts);
-          if (this.net) this.net.send({ type: MSG.EVENT, event: 'POWERUP', pid: player.id, power: pu.powerLevel });
+          if (this.isHost && this.net) this.net.send({ type: MSG.EVENT, event: 'POWERUP', pid: player.id, power: pu.powerLevel });
         }
       }
 
@@ -278,7 +280,7 @@ export class Game {
             player.score += pts;
             this._addScorePop(enemy.x, enemy.y, String(pts));
           }
-          if (this.net) this.net.send({ type: MSG.EVENT, event: 'STOMP', eid: enemy.id, pid: player.id });
+          if (this.isHost && this.net) this.net.send({ type: MSG.EVENT, event: 'STOMP', eid: enemy.id, pid: player.id });
         } else if (player.stompGrace > 0) {
           // Still in post-stomp grace window – ignore contact
         } else if (enemy instanceof Koopa && enemy.shellMoving) {
@@ -286,7 +288,7 @@ export class Game {
           player.hurt();
         } else if (!enemy.dead) {
           player.hurt();
-          if (this.net) this.net.send({ type: MSG.EVENT, event: 'HURT', pid: player.id });
+          if (this.isHost && this.net) this.net.send({ type: MSG.EVENT, event: 'HURT', pid: player.id });
         }
       }
 
