@@ -24,10 +24,39 @@ export class Input {
     // Inventory slot (0-4)
     this.slot = 0;
 
+    // Chat
+    this.chatMode   = false;   // true while user is typing
+    this.chatBuffer = '';      // current typed text
+    this.onChatSubmit = null;  // callback(text) set by game
+
     this._canvas = null;
 
     this._onDown = (e) => {
+      if (this.chatMode) {
+        // Intercept all keys while typing
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+          const txt = this.chatBuffer.trim();
+          if (txt && this.onChatSubmit) this.onChatSubmit(txt);
+          this.chatMode   = false;
+          this.chatBuffer = '';
+        } else if (e.key === 'Escape') {
+          this.chatMode   = false;
+          this.chatBuffer = '';
+        } else if (e.key === 'Backspace') {
+          this.chatBuffer = this.chatBuffer.slice(0, -1);
+        } else if (e.key.length === 1 && this.chatBuffer.length < 80) {
+          this.chatBuffer += e.key;
+        }
+        return; // don't pass to game keys
+      }
       if (!e.repeat) this._held.add(e.code);
+      // Y opens chat
+      if (e.code === 'KeyY' && !e.repeat) {
+        this.chatMode   = true;
+        this.chatBuffer = '';
+        return;
+      }
       // Number keys 1-5 for slot selection
       if (e.code >= 'Digit1' && e.code <= 'Digit5') {
         this.slot = parseInt(e.code.slice(-1)) - 1;
@@ -76,6 +105,15 @@ export class Input {
 
   update() {
     this._prev = new Set(this._held);
+
+    // Suppress all movement while chat is open
+    if (this.chatMode) {
+      this.left = false; this.right = false;
+      this.jump = false; this.run   = false; this.fire = false;
+      this.mouseClicked  = false;
+      this._mouseWasDown = this.mouseDown;
+      return;
+    }
 
     this.left  = this._held.has('ArrowLeft')  || this._held.has('KeyA') || this._touch.left;
     this.right = this._held.has('ArrowRight') || this._held.has('KeyD') || this._touch.right;

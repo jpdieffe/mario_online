@@ -70,10 +70,15 @@ export class Game {
     this.explosions     = [];
     this.drawnObjects   = [];
     this._pencilState   = { drawing: false, pts: [], minX: 0, maxX: 0, minY: 0, maxY: 0 };
+
+    // Chat
+    this._chatLog      = [];  // [{pid, name, text, timer}]
+    this._speechBubble = {};  // { [pid]: {text, timer} }
   }
 
   setInput(inputInstance) {
     this._localInput = inputInstance;
+    inputInstance.onChatSubmit = (text) => this._sendChat(text);
   }
 
   /** Attach (or replace) the network after game has already started. */
@@ -292,6 +297,14 @@ export class Game {
     for (const c of this.weaponCrates) c.update(1);
     this._checkCratePickups();
     this._updateDrawnObjects();
+
+    // ── Chat timers ───────────────────────────────────────────
+    for (const entry of this._chatLog) entry.timer--;
+    this._chatLog = this._chatLog.filter(e => e.timer > 0);
+    for (const pid of Object.keys(this._speechBubble)) {
+      this._speechBubble[pid].timer--;
+      if (this._speechBubble[pid].timer <= 0) delete this._speechBubble[pid];
+    }
 
 
     this.level.update(1);
@@ -667,7 +680,137 @@ export class Game {
         if (player) player.addItem(msg.item);
         break;
       }
+      case 'CHAT': {
+        this._receiveChat(msg.pid, msg.text);
+        break;
+      }
     }
+  }
+
+  // ── CHAT ─────────────────────────────────────────────────
+
+  _sendChat(text) {
+    // Add locally first
+    this._receiveChat(this.localIdx, text);
+    // Broadcast to peer
+    if (this.net && this.peerConnected) {
+      this.net.send({ type: MSG.EVENT, event: 'CHAT', pid: this.localIdx, text });
+    }
+  }
+
+  _receiveChat(pid, text) {
+    const names = ['Mario', 'Luigi'];
+    this._chatLog.push({ pid, name: names[pid] ?? 'P' + (pid + 1), text, timer: 420 }); // 7 sec
+    if (this._chatLog.length > 8) this._chatLog.shift();
+    this._speechBubble[pid] = { text, timer: 240 }; // 4 sec above head
+  }
+
+  _drawSpeechBubbles(ctx, cam) {
+    for (const player of this.players) {
+      const bubble = this._speechBubble[player.id];
+      if (!bubble) continue;
+      const alpha = Math.min(1, bubble.timer / 30);  // fade out last 30 frames
+      const bx = player.x - cam.x + player.w / 2;
+      const by = player.y - cam.y - 10;
+      const maxW = 140;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.font = 'bold 9px sans-serif';
+
+      // Wrap text
+      const words = bubble.text.split(' ');
+      const lines = [];
+      let cur = '';
+      for (const w of words) {
+        const test = cur ? cur + ' ' + w : w;
+        if (ctx.measureText(test).width > maxW - 12) { lines.push(cur); cur = w; }
+        else cur = test;
+      }
+      if (cur) lines.push(cur);
+
+      const lineH = 12;
+      const bw = Math.min(maxW, Math.max(...lines.map(l => ctx.measureText(l).width)) + 12);
+      const bh = lines.length * lineH + 8;
+      const rx = bx - bw / 2;
+      const ry = by - bh - 8;
+
+      // Bubble background
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 1;
+      const r = 6;
+      ctx.beginPath();
+      ctx.moveTo(rx + r, ry);
+      ctx.lineTo(rx + bw - r, ry);
+      ctx.quadraticCurveTo(rx + bw, ry, rx + bw, ry + r);
+      ctx.lineTo(rx + bw, ry + bh - r);
+      ctx.quadraticCurveTo(rx + bw, ry + bh, rx + bw - r, ry + bh);
+      // Tail triangle
+      ctx.lineTo(bx + 5, ry + bh);
+      ctx.lineTo(bx, ry + bh + 8);
+      ctx.lineTo(bx - 5, ry + bh);
+      ctx.lineTo(rx + r, ry + bh);
+      ctx.quadraticCurveTo(rx, ry + bh, rx, ry + bh - r);
+      ctx.lineTo(rx, ry + r);
+      ctx.quadraticCurveTo(rx, ry, rx + r, ry);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Text
+      ctx.fillStyle = '#000';
+      ctx.textAlign = 'center';
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], bx, ry + 10 + i * lineH);
+      }
+      ctx.restore();
+    }
+  }
+
+  _drawChatWindow(ctx) {
+    if (this._chatLog.length === 0 && !(this._localInput?.chatMode)) return;
+
+    const CHAT_W = 200;
+    const CHAT_X = CANVAS_W - CHAT_W - 8;
+    const CHAT_Y = 8;
+    const LINE_H = 13;
+    const PAD    = 6;
+
+    const inputOpen = this._localInput?.chatMode;
+    const lines = this._chatLog.map(e => ({ label: e.name + ': ' + e.text, pid: e.pid }));
+    const totalLines = lines.length + (inputOpen ? 1 : 0);
+    if (totalLines === 0) return;
+
+    const boxH = totalLines * LINE_H + PAD * 2 + (inputOpen ? 4 : 0);
+
+    ctx.save();
+    // Transparent background — just a faint tint so text is readable
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(CHAT_X, CHAT_Y, CHAT_W, boxH);
+
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'left';
+    const colors = ['#1565C0', '#2E7D32'];
+
+    for (let i = 0; i < lines.length; i++) {
+      const { label, pid } = lines[i];
+      ctx.fillStyle = colors[pid] ?? '#222';
+      ctx.fillText(label, CHAT_X + PAD, CHAT_Y + PAD + (i + 1) * LINE_H - 3);
+    }
+
+    // Chat input line
+    if (inputOpen) {
+      const iy = CHAT_Y + PAD + lines.length * LINE_H + 4;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillRect(CHAT_X + PAD - 2, iy - 10, CHAT_W - PAD * 2 + 4, LINE_H + 2);
+      const cursor = Math.floor(Date.now() / 500) % 2 === 0 ? '|' : '';
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillText('▶ ' + this._localInput.chatBuffer + cursor, CHAT_X + PAD, iy);
+    }
+
+    ctx.restore();
   }
 
   // ── ITEM SYSTEM ───────────────────────────────────────────
@@ -1035,6 +1178,12 @@ export class Game {
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.fillRect(0, 0, w, h);
     }
+
+    // Speech bubbles above players
+    this._drawSpeechBubbles(ctx, cam);
+
+    // Chat window (top right)
+    this._drawChatWindow(ctx);
 
     // Hotbar HUD (drawn on-canvas so it scales with the game)
     if (this._state === STATE.PLAYING) {
