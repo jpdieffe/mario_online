@@ -43,6 +43,7 @@ export class Player {
     this.dead         = false;
     this.deadTimer    = 0;
     this.invuln       = 0;
+    this.stompGrace   = 0;  // brief immunity after a stomp
     this.flashOn      = false;
     this.jumpHold     = 0;
     this.animFrame    = 0;
@@ -67,6 +68,7 @@ export class Player {
 
     this._prevY = this.y;
     this._updateInvuln(dt);
+    if (this.stompGrace > 0) this.stompGrace -= dt;
     this._handleInput(input, dt);
     this._applyGravity(dt);
     this._resolveCollisions(level);

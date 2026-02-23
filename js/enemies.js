@@ -50,13 +50,20 @@ class Enemy {
     this.onGround = false;
     this.hitWall  = false;
     this.vy = Math.min(this.vy + GRAVITY, MAX_FALL);
+
+    // Save direction BEFORE resolveEntity zeroes out vx on wall contact
+    const prevDir = Math.sign(this.vx) || -1;
     resolveEntity(this, level);
 
-    if (this.hitWall) this.vx = -this.vx;  // turn around at walls
+    if (this.hitWall) {
+      // Flip using the saved direction and the enemy's own walk speed
+      this.vx = -prevDir * (this._spd ?? GOOMBA_SPD);
+    }
 
     // Turn around at tile edges (don't walk off platforms)
     if (this.onGround && this.vx !== 0) {
-      const checkX = this.vx > 0 ? this.x + this.w + 1 : this.x - 1;
+      const lookDir = Math.sign(this.vx);
+      const checkX   = lookDir > 0 ? this.x + this.w + 1 : this.x - 1;
       const checkCol = Math.floor(checkX / TILE);
       const checkRow = Math.floor((this.y + this.h + 1) / TILE);
       if (!level.isSolid(checkCol, checkRow)) {
@@ -94,7 +101,8 @@ class Enemy {
 export class Goomba extends Enemy {
   constructor(x, y) {
     super(x, y, 28, 28);
-    this.vx = -GOOMBA_SPD;
+    this.vx   = -GOOMBA_SPD;
+    this._spd = GOOMBA_SPD;
     this.type = 'Goomba';
   }
 
@@ -141,6 +149,7 @@ export class Koopa extends Enemy {
   constructor(x, y) {
     super(x, y, 26, 36);
     this.vx     = -KOOPA_SPD;
+    this._spd   = KOOPA_SPD;
     this.type   = 'Koopa';
     this.shelled = false;  // in shell (not moving)
     this.shellMoving = false;

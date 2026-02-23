@@ -271,11 +271,14 @@ export class Game {
           else if (enemy instanceof Koopa) pts = enemy.stomp(player);
 
           player.vy = -8;  // bounce
+          player.stompGrace = 12; // ~12 frames of immunity after stomp
           if (pts > 0) {
             player.score += pts;
             this._addScorePop(enemy.x, enemy.y, String(pts));
           }
           if (this.net) this.net.send({ type: MSG.EVENT, event: 'STOMP', eid: enemy.id, pid: player.id });
+        } else if (player.stompGrace > 0) {
+          // Still in post-stomp grace window – ignore contact
         } else if (enemy instanceof Koopa && enemy.shellMoving) {
           // Shell hurts player
           player.hurt();
