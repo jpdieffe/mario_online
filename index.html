@@ -13,26 +13,36 @@
     <div class="lobby-box">
       <h1>🍄 Mario Online Co-op</h1>
       <p class="subtitle">2-Player peer-to-peer platformer</p>
-      <p class="version">v1.7</p>
+      <p class="version">v1.6</p>
 
-      <p class="room-list-hint">Pick a room. First one in becomes the host, second joins.</p>
+      <div class="lobby-columns">
 
-      <div class="room-list">
-        <button class="room-card" data-room="BANANA">
-          <span class="room-icon">🍌</span>
-          <span class="room-name">BANANA</span>
-        </button>
-        <button class="room-card" data-room="APPLE">
-          <span class="room-icon">🍎</span>
-          <span class="room-name">APPLE</span>
-        </button>
-        <button class="room-card" data-room="BERRY">
-          <span class="room-icon">🫐</span>
-          <span class="room-name">BERRY</span>
-        </button>
+        <!-- HOST -->
+        <div class="lobby-col">
+          <h2>Host a Game</h2>
+          <p class="col-hint">Pick a room name then share it with Player 2</p>
+          <div class="room-row">
+            <input id="host-name-input" type="text" placeholder="e.g. BANANA" maxlength="16"
+                   spellcheck="false" autocomplete="off" />
+            <button id="btn-random" class="btn-icon" title="Random name">🎲</button>
+          </div>
+          <button id="btn-host" class="btn-primary">Create Room →</button>
+          <p id="host-status" class="status-msg"></p>
+        </div>
+
+        <div class="lobby-divider">OR</div>
+
+        <!-- JOIN -->
+        <div class="lobby-col">
+          <h2>Join a Game</h2>
+          <p class="col-hint">Enter the room name your friend shared</p>
+          <input id="join-input" type="text" placeholder="e.g. BANANA" maxlength="16"
+                 spellcheck="false" autocomplete="off" />
+          <button id="btn-join" class="btn-primary">Join Room →</button>
+          <p id="join-status" class="status-msg"></p>
+        </div>
+
       </div>
-
-      <p id="lobby-status" class="status-msg"></p>
     </div>
   </div>
 
