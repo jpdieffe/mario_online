@@ -5,10 +5,10 @@
 // ============================================================
 
 export const CFG = {
-  JUMP_VEL:         -7.0,   // initial jump velocity (negative = up)
-  JUMP_HOLD_FRAMES:  12,    // frames the hold-boost extends the jump
-  GRAVITY_RISE:      0.22,  // gravity while ascending
-  GRAVITY_FALL:      0.46,  // gravity while descending
+  JUMP_VEL:         -7.0,
+  JUMP_HOLD_FRAMES:  12,
+  GRAVITY_RISE:      0.22,
+  GRAVITY_FALL:      0.07,
   WALK_SPD:          2.8,
   RUN_SPD:           4.8,
   MAX_FALL:          14,
