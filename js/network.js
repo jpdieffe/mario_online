@@ -21,15 +21,19 @@ export class Network {
     this._pending = [];  // queued outbound messages before conn is open
   }
 
-  /** Create a new Peer and wait for a remote to connect (host mode). */
-  host() {
+  /** Normalise a room name to a valid, namespaced PeerJS id. */
+  static roomToPeerId(roomName) {
+    return 'marioonline-' + roomName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  /** Create a new Peer using roomName as the peer ID, then wait for a remote to connect (host mode). */
+  host(roomName) {
     this.isHost = true;
-    this.peer = new Peer(undefined, { debug: 0 });
+    const peerId = Network.roomToPeerId(roomName);
+    this.peer = new Peer(peerId, { debug: 0 });
 
     this.peer.on('open', (id) => {
       this.peerId = id;
-      // Expose ID to lobby UI
-      if (typeof this.onPeerId === 'function') this.onPeerId(id);
     });
 
     this.peer.on('connection', (conn) => {
@@ -42,9 +46,10 @@ export class Network {
     });
   }
 
-  /** Connect to a remote host (client mode). */
-  join(hostId) {
+  /** Connect to a host identified by roomName (client mode). */
+  join(roomName) {
     this.isHost = false;
+    const hostId = Network.roomToPeerId(roomName);
     this.peer = new Peer(undefined, { debug: 0 });
 
     this.peer.on('open', () => {

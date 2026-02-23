@@ -1,50 +1,70 @@
-// ============================================================
-//  main.js  –  entry point: lobby UI + game loop bootstrap
+﻿// ============================================================
+//  main.js    entry point: lobby UI + game loop bootstrap
 // ============================================================
 
 import { Game }    from './game.js';
 import { Network } from './network.js';
 import { Input }   from './input.js';
 
-// ── DOM refs ─────────────────────────────────────────────
+//  DOM refs 
 
 const lobbyEl       = document.getElementById('lobby');
 const gameEl        = document.getElementById('game-screen');
 const btnHost       = document.getElementById('btn-host');
 const btnJoin       = document.getElementById('btn-join');
-const btnCopy       = document.getElementById('btn-copy');
+const btnRandom     = document.getElementById('btn-random');
+const hostNameInput = document.getElementById('host-name-input');
 const joinInput     = document.getElementById('join-input');
-const peerIdDisplay = document.getElementById('peer-id-display');
-const hostCodeArea  = document.getElementById('host-code-area');
-const waitingMsg    = document.getElementById('waiting-msg');
-const lobbyStatus   = document.getElementById('lobby-status');
+const hostStatus    = document.getElementById('host-status');
+const joinStatus    = document.getElementById('join-status');
 const canvas        = document.getElementById('game-canvas');
 
-// ── Globals ───────────────────────────────────────────────
+//  Globals 
 
 let game    = null;
 let net     = null;
 let input   = null;
 let rafId   = null;
 
-// ── Lobby: Host flow ──────────────────────────────────────
+//  Random room name 
+
+const WORDS = [
+  'APPLE','BANANA','CASTLE','DRAGON','EARTH','FALCON','GRAPE',
+  'HONEY','ISLAND','JUNGLE','KOOPA','LEMON','MARIO','NOVA','OCEAN',
+  'PEACH','QUEST','RIVER','STORM','TOAD','ULTRA','VISTA','WATER',
+  'XENON','YOSHI','ZEBRA'
+];
+
+function randomRoom() {
+  return WORDS[Math.floor(Math.random() * WORDS.length)];
+}
+
+// Pre-fill host name on load
+hostNameInput.value = randomRoom();
+
+btnRandom.addEventListener('click', () => {
+  hostNameInput.value = randomRoom();
+  hostNameInput.focus();
+});
+
+// Enter key shortcuts
+hostNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnHost.click(); });
+joinInput.addEventListener('keydown',     (e) => { if (e.key === 'Enter') btnJoin.click(); });
+
+//  Lobby: Host flow 
 
 btnHost.addEventListener('click', () => {
-  setStatus('');
+  const roomName = hostNameInput.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!roomName) { setStatus(hostStatus, 'Enter a room name first.', true); return; }
+
+  setStatus(hostStatus, '');
   btnHost.disabled = true;
   btnJoin.disabled = true;
 
-  // Start the game IMMEDIATELY – don't wait for PeerJS
   net = new Network();
-  startGame(0, null);
 
-  // PeerJS initialises in the background; show code when ready
-  net.onPeerId = (id) => {
-    // Update on-canvas code display inside the running game
-    if (game) game._peerCode = id;
-    // Also update the copy button text in case user ALT-tabs back
-    peerIdDisplay.textContent = id;
-  };
+  // Start game immediately using the room name
+  startGame(0, roomName);
 
   net.onConnected = () => {
     if (game) game.onPeerJoined();
@@ -52,31 +72,32 @@ btnHost.addEventListener('click', () => {
 
   net.onError = (err) => {
     console.warn('PeerJS error (non-fatal):', err.type);
-    if (game) game._peerCode = 'Network error – solo only';
+    if (game) game._peerCode = 'Room: ' + roomName + ' (solo  network error)';
+    else setStatus(hostStatus, 'Network error: ' + err.type, true);
   };
 
-  net.host();
+  net.host(roomName);
 });
 
-// ── Lobby: Join flow ─────────────────────────────────────
+//  Lobby: Join flow 
 
 btnJoin.addEventListener('click', () => {
-  const hostId = joinInput.value.trim();
-  if (!hostId) { setStatus('Please enter a host code.', true); return; }
+  const roomName = joinInput.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!roomName) { setStatus(joinStatus, 'Enter a room name first.', true); return; }
 
-  setStatus('Connecting…');
+  setStatus(joinStatus, 'Connecting to room ' + roomName + '');
   btnHost.disabled = true;
   btnJoin.disabled = true;
 
   net = new Network();
 
   net.onConnected = () => {
-    setStatus('Connected! Starting…');
-    setTimeout(() => startGame(1), 800);
+    setStatus(joinStatus, 'Connected! Starting');
+    setTimeout(() => startGame(1, roomName), 600);
   };
 
   net.onError = (err) => {
-    setStatus('Could not connect: ' + err.type, true);
+    setStatus(joinStatus, 'Could not connect: ' + err.type, true);
     resetLobby();
   };
 
@@ -84,48 +105,27 @@ btnJoin.addEventListener('click', () => {
     if (game) showDisconnect();
   };
 
-  net.join(hostId);
+  net.join(roomName);
 });
 
-// ── Copy code button ──────────────────────────────────────
+//  Game start 
 
-btnCopy.addEventListener('click', () => {
-  const code = peerIdDisplay.textContent;
-  navigator.clipboard?.writeText(code).then(() => {
-    btnCopy.textContent = 'Copied!';
-    setTimeout(() => { btnCopy.textContent = 'Copy Code'; }, 1500);
-  });
-});
-
-// Also allow pressing Enter in the join input
-joinInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') btnJoin.click();
-});
-
-// ── Game start ────────────────────────────────────────────
-
-function startGame(playerIndex, peerCode = null) {
+function startGame(playerIndex, roomName = null) {
   lobbyEl.classList.add('hidden');
   gameEl.classList.remove('hidden');
 
   input = new Input();
   game  = new Game(canvas, net, playerIndex);
 
-  // Give the game the peer code so it can display it on-canvas
-  // (may be null at this point for host – it gets set later via onPeerId)
-  game._peerCode = peerCode ?? '…getting code…';
+  // Show human-readable room name on canvas
+  game._peerCode = roomName ? 'Room: ' + roomName : '';
 
-  // For the JOIN flow, wire up disconnect. Host flow already wired in click handler.
-  if (playerIndex === 1) {
-    net.onDisconnected = () => showDisconnect();
-  } else {
-    net.onDisconnected = () => showDisconnect();
-  }
+  net.onDisconnected = () => showDisconnect();
 
   game.setInput(input);
   game.load(0);
 
-  // Pause loop when tab is hidden to prevent position-jump on refocus
+  // Pause RAF when tab is hidden to prevent position-jump on refocus
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
@@ -134,7 +134,6 @@ function startGame(playerIndex, peerCode = null) {
     }
   });
 
-  // Game loop
   function loop() {
     rafId = requestAnimationFrame(loop);
     game.tick();
@@ -142,9 +141,8 @@ function startGame(playerIndex, peerCode = null) {
   loop();
 }
 
-// ── Solo / dev mode (no network — for testing) ───────────
+//  Solo / dev mode (URL param ?solo=1) 
 
-/** Expose a solo test mode via URL param: ?solo=1 */
 if (new URLSearchParams(location.search).get('solo') === '1') {
   lobbyEl.classList.add('hidden');
   gameEl.classList.remove('hidden');
@@ -160,27 +158,24 @@ if (new URLSearchParams(location.search).get('solo') === '1') {
   })();
 }
 
-// ── Helper: show disconnect overlay ──────────────────────
+//  Helpers 
 
 function showDisconnect() {
   if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   const msg = document.getElementById('game-msg');
   if (msg) {
-    msg.textContent = '⚠️ Peer disconnected. Refresh to play again.';
+    msg.textContent = 'Peer disconnected. Refresh to play again.';
     msg.classList.remove('hidden');
   }
 }
 
-// ── Helper: lobby status text ─────────────────────────────
-
-function setStatus(text, isError = false) {
-  lobbyStatus.textContent = text;
-  lobbyStatus.className   = 'status-msg' + (isError ? ' error' : '');
+function setStatus(el, text, isError = false) {
+  el.textContent = text;
+  el.className   = 'status-msg' + (isError ? ' error' : '');
 }
 
 function resetLobby() {
   btnHost.disabled = false;
   btnJoin.disabled = false;
-  hostCodeArea.classList.add('hidden');
-  if (net) { net.destroy(); net = null; }
+  if (net) { net.destroy?.(); net = null; }
 }

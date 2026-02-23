@@ -27,8 +27,8 @@ body {
   background: #2d1b4e;
   border: 3px solid #e8c84a;
   border-radius: 16px;
-  padding: 40px 48px;
-  max-width: 460px;
+  padding: 36px 44px;
+  max-width: 700px;
   width: 100%;
   text-align: center;
   box-shadow: 0 0 40px rgba(232, 200, 74, 0.3);
@@ -50,15 +50,88 @@ body {
 .version {
   color: #6b5280;
   font-size: 0.75rem;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
   letter-spacing: 1px;
 }
 
-.divider {
-  color: #6b5280;
-  margin: 20px 0;
-  font-size: 0.85rem;
+/* Two-column layout */
+.lobby-columns {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
 }
+
+.lobby-col {
+  flex: 1;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.lobby-col h2 {
+  font-size: 1.1rem;
+  color: #e8c84a;
+  margin-bottom: 8px;
+}
+
+.col-hint {
+  color: #a890c8;
+  font-size: 0.8rem;
+  margin-bottom: 14px;
+  min-height: 32px;
+}
+
+.lobby-divider {
+  color: #6b5280;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0 8px;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+/* Room name row: input + dice button */
+.room-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.room-row input {
+  flex: 1;
+}
+
+/* Generic lobby inputs */
+.lobby-col input,
+.room-row input {
+  background: #120820;
+  border: 2px solid #6b5280;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: 10px 14px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s;
+  text-transform: uppercase;
+}
+.lobby-col input:focus,
+.room-row input:focus { border-color: #e8c84a; }
+
+/* Dice / random button */
+.btn-icon {
+  background: #4a3270;
+  border: 2px solid #6b5280;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0 12px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.btn-icon:hover { background: #5e4090; }
 
 /* Buttons */
 .btn-primary {
@@ -72,61 +145,15 @@ body {
   padding: 12px 28px;
   transition: background 0.15s, transform 0.1s;
   width: 100%;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 .btn-primary:hover { background: #ff4a1e; }
 .btn-primary:active { transform: scale(0.97); }
 
-.btn-secondary {
-  background: #4a3270;
-  border: 2px solid #a890c8;
-  border-radius: 8px;
-  color: #fff;
-  cursor: pointer;
-  font-size: 0.9rem;
-  padding: 8px 20px;
-  margin-top: 8px;
-  transition: background 0.15s;
-}
-.btn-secondary:hover { background: #5e4090; }
-
-/* Host code */
-#host-code-area { margin-top: 16px; }
-#host-code-area p { color: #c8b8e0; font-size: 0.9rem; margin-bottom: 6px; }
-
-.code-box {
-  background: #120820;
-  border: 2px solid #6b5280;
-  border-radius: 8px;
-  color: #e8c84a;
-  font-family: monospace;
-  font-size: 1.1rem;
-  letter-spacing: 2px;
-  padding: 10px 16px;
-  word-break: break-all;
-}
-
-.dim { color: #6b5280; font-size: 0.85rem; margin-top: 8px; }
-
-/* Join input */
-#join-input {
-  background: #120820;
-  border: 2px solid #6b5280;
-  border-radius: 8px;
-  color: #fff;
-  font-size: 1rem;
-  padding: 10px 14px;
-  width: 100%;
-  margin-bottom: 4px;
-  outline: none;
-  transition: border-color 0.2s;
-}
-#join-input:focus { border-color: #e8c84a; }
-
 .status-msg {
-  margin-top: 16px;
+  margin-top: 10px;
   min-height: 20px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #78e87a;
 }
 .status-msg.error { color: #e87878; }
