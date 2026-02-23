@@ -4,7 +4,7 @@
 
 import {
   TILE, GRAVITY, MAX_FALL, WALK_SPD, RUN_SPD,
-  JUMP_VEL, JUMP_HOLD_FRAMES, POWER, PSTATE,
+  JUMP_VEL, JUMP_HOLD_FRAMES, GRAVITY_RISE, GRAVITY_FALL, POWER, PSTATE,
 } from './constants.js';
 import { resolveEntity, levelBoundaryCheck } from './physics.js';
 import { Sprites, flipH } from './sprites.js';
@@ -141,7 +141,9 @@ export class Player {
   }
 
   _applyGravity(dt) {
-    this.vy = Math.min(this.vy + GRAVITY * dt, MAX_FALL);
+    // Asymmetric gravity: floaty on the way up, snappier on the way down
+    const g = this.vy < 0 ? GRAVITY_RISE : GRAVITY_FALL;
+    this.vy = Math.min(this.vy + g * dt, MAX_FALL);
   }
 
   _resolveCollisions(level) {

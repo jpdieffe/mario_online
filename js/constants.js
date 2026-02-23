@@ -7,8 +7,10 @@ export const GRAVITY  = 0.55;
 export const MAX_FALL = 14;
 export const WALK_SPD = 2.8;
 export const RUN_SPD  = 4.8;
-export const JUMP_VEL = -9.5;       // initial jump velocity
-export const JUMP_HOLD_FRAMES = 11;  // frames jump force is extended
+export const JUMP_VEL = -10.5;      // initial jump velocity
+export const JUMP_HOLD_FRAMES = 12;  // frames jump force is extended
+export const GRAVITY_RISE = 0.28;    // gravity while ascending (floaty)
+export const GRAVITY_FALL = 0.58;    // gravity while descending (snappy)
 
 export const CANVAS_W = 832;        // 26 tiles wide (viewport)
 export const CANVAS_H = 480;        // 15 tiles tall
