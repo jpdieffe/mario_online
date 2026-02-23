@@ -32,11 +32,20 @@ export const T = {
   SKY:    12, // decorative sky tile (non-solid)
   SOLID_INVISIBLE: 13,
   DRAWN:  14,  // pencil-drawn tile (solid, colored)
+  LAVA:   15,  // kills on contact
+  ICE:    16,  // low friction
+  PLATFORM: 17, // moving platform (drawn by game, not level tiles)
+  SNOW:   18,  // decorative snow ground
+  DARK_BRICK: 19, // dark castle brick
 };
 
 // Which tiles are solid
 export const SOLID_TILES = new Set([T.GROUND, T.BRICK, T.QBLOCK, T.QUSED,
-  T.PIPE_TL, T.PIPE_TR, T.PIPE_BL, T.PIPE_BR, T.SOLID_INVISIBLE, T.DRAWN]);
+  T.PIPE_TL, T.PIPE_TR, T.PIPE_BL, T.PIPE_BR, T.SOLID_INVISIBLE, T.DRAWN,
+  T.ICE, T.SNOW, T.DARK_BRICK]);
+
+// Which tiles are hazardous (kill players on touch)
+export const HAZARD_TILES = new Set([T.LAVA]);
 
 // Spawn types in level data
 export const SPAWN = {
@@ -45,6 +54,10 @@ export const SPAWN = {
   COIN:     'C',
   MUSHROOM: 'M',
   FLOWER:   'F',
+  FIREBRO:  'f',   // fire-throwing enemy
+  ICEGOOMBA:'i',   // ice goomba
+  LIZARD:   'l',   // fast lizard / rex
+  FLYER:    'p',   // flying paratroopa
 };
 
 // Player states

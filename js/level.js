@@ -2,7 +2,7 @@
 //  level.js  –  level data, tile rendering, spawns
 // ============================================================
 
-import { T, SPAWN, SOLID_TILES, TILE } from './constants.js';
+import { T, SPAWN, SOLID_TILES, HAZARD_TILES, TILE } from './constants.js';
 import { Sprites } from './sprites.js';
 
 // Spawn type for weapon crates
@@ -25,6 +25,15 @@ export const SPAWN_CRATE = 'CRATE';
 //  'c'        = coin spawn
 //  'X'        = goal flag (invisible tile column)
 //  '%'        = solid invisible tile (ceiling/wall)
+//  'L'        = lava (hazard, kills on touch)
+//  'I'        = ice (solid, low friction)
+//  'S'        = snow ground (solid)
+//  'D'        = dark brick / castle brick (solid)
+//  'f'        = FireBro spawn
+//  'i'        = IceGoomba spawn
+//  'l'        = Lizard spawn
+//  'p'        = Flyer spawn
+//  'P'        = moving platform spawn
 
 const LEVELS = [
 
@@ -81,6 +90,116 @@ const LEVELS = [
     p1Spawn: { col: 2, row: 5 },
     p2Spawn: { col: 3, row: 5 },
   },
+
+  // ── LEVEL  3 — Ice Tundra ────────────────────────────────
+  {
+    bgTop:    '#B8D4F0',
+    bgBottom: '#D8EEF8',
+    music:    'ice',
+    map: [
+      /*r0*/  '                                                                                             ',
+      /*r1*/  '                                                                                             ',
+      /*r2*/  '                    BBB            BBB                 BBB                                  ',
+      /*r3*/  '                                                                                             ',
+      /*r4*/  '         IIII              IIII          III                  IIII      IIIII              ',
+      /*r5*/  '              i                  i                 i                                       ',
+      /*r6*/  'SSSSSSSSSSSSS    SSSSSSSSSSSS       SSSSSSSSSSSSSSSSSSSSS        SSSSSSSSSSSSSSSSSSSS      ',
+      /*r7*/  'SSSSSSSSSSSSS    SSSSSSSSSSSS       SSSSSSSSSSSSSSSSSSSSSi       SSSSSSSSSSSSSSSSSSSSi     X',
+      /*r8*/  'SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSs',
+      /*r9*/  'SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS',
+    ],
+    p1Spawn: { col: 2, row: 6 },
+    p2Spawn: { col: 4, row: 6 },
+  },
+
+  // ── LEVEL  4 — Fire World ────────────────────────────────
+  {
+    bgTop:    '#330000',
+    bgBottom: '#550000',
+    music:    'fire',
+    map: [
+      /*r0*/  '                                                                                                           ',
+      /*r1*/  '                                                                                                           ',
+      /*r2*/  '       DDDDD                         DDDDD                      DDDDD                                     ',
+      /*r3*/  '                 f                           f                          f                                 ',
+      /*r4*/  '     DDDDDDDDD              DDDDDDDDDDD        DDDDDDDDD                                                  ',
+      /*r5*/  '                                                                 l               l                        ',
+      /*r6*/  'DDDDD       DDDDDDD    DDDDDDDDD    DDDDDDDDDDDD    DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD',
+      /*r7*/  'DDDDD       DDDDDDD    DDDDDDDDD    DDDDDDDDDDDD    DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD',
+      /*r8*/  'LLLLL       LLLLLLL    LLLLLLLLL    LLLLLLLLLLLl    LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL',
+      /*r9*/  'LLLLL       LLLLLLL    LLLLLLLLL    LLLLLLLLLL       c c c c c c c c c c c c c c c c c c c c c c c c c  X',
+      /*r10*/ 'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDs',
+      /*r11*/ 'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD',
+    ],
+    p1Spawn: { col: 1, row: 5 },
+    p2Spawn: { col: 2, row: 5 },
+  },
+
+  // ── LEVEL  5 — Sky Fortress ──────────────────────────────
+  // Moving platforms (P) placed across wide gaps; Flyers patrol
+  {
+    bgTop:    '#2277FF',
+    bgBottom: '#88CCFF',
+    music:    'sky',
+    map: [
+      /*r0*/  '                                                                                                           ',
+      /*r1*/  '                                                                                                           ',
+      /*r2*/  '                                                                                                           ',
+      /*r3*/  '  p          p          p          p          p          p          p          p          p          p    ',
+      /*r4*/  '                                                                                                           ',
+      /*r5*/  'GGGG     P       P          P       P           P        P      P          P       P          P     GGGGG',
+      /*r6*/  'GGGG                                                                                                 GGGGG',
+      /*r7*/  'GGGG     BBQB                BBQB                 BBQB                BBQB                       X  GGGGG',
+      /*r8*/  'GGGGGGGG                                                                                       GGGGGGGGGGs',
+      /*r9*/  'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG',
+    ],
+    p1Spawn: { col: 1, row: 7 },
+    p2Spawn: { col: 2, row: 7 },
+  },
+
+  // ── LEVEL  6 — Castle ───────────────────────────────────
+  {
+    bgTop:    '#000010',
+    bgBottom: '#000020',
+    music:    'castle',
+    map: [
+      /*r0*/  '%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%',
+      /*r1*/  '%                                                                   %',
+      /*r2*/  '%  DDDDD         DDDDD          DDDDDDD           DDDDDDD          %',
+      /*r3*/  '%        f                f                  f                 f   %',
+      /*r4*/  '%  DDDDDDDDD    DDDDDDDDDDDDD    DDDDDDDDDDD    DDDDDDDDDDDDDDDDD  %',
+      /*r5*/  '%                                                                   %',
+      /*r6*/  '%  l      l          l      l                   l         l         %',
+      /*r7*/  '%  DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD%',
+      /*r8*/  '%  DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD%',
+      /*r9*/  '%LLLLLL       LLLLLLLLL      LLLLLLLLL     LLLLLLLL      LLLLLLLLLL%',
+      /*r10*/ '%DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD%',
+      /*r11*/ '%DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDc c c X%',
+      /*r12*/ '%DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD%',
+    ],
+    p1Spawn: { col: 2, row: 6 },
+    p2Spawn: { col: 3, row: 6 },
+  },
+
+  // ── LEVEL  7 — Bonus Gauntlet ────────────────────────────
+  {
+    bgTop:    '#1A0040',
+    bgBottom: '#2A0060',
+    music:    'bonus',
+    map: [
+      /*r0*/  '                                                                                         ',
+      /*r1*/  '   BBQB       BBQB       BBQB       BBQB       BBQB       BBQB       BBQB       BBQB   ',
+      /*r2*/  '                                                                                         ',
+      /*r3*/  '  g      k       i       l       p       g       k       i       p       l       g      ',
+      /*r4*/  '  GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG  ',
+      /*r5*/  '  GGGGGGG     GGGGGGG     GGGGGGG     GGGGGGG     GGGGGGG     GGGGGGG     GGGGGGG  X   ',
+      /*r6*/  'LLLLLLL     LLLLLLL     LLLLLLL     LLLLLLL     LLLLLLL     LLLLLLL     LLLLLLLLLLLs  ',
+      /*r7*/  'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGs ',
+      /*r8*/  'GGGGGGGwGGGGGGGGGGwGGGGGGGGGGGwGGGGGGGGGGGwGGGGGGGGGGGwGGGGGGGGGGGwGGGGGGGGGGwGGGGGG ',
+    ],
+    p1Spawn: { col: 2, row: 3 },
+    p2Spawn: { col: 4, row: 3 },
+  },
 ];
 
 // ── Parse a level string map into tiles + spawn list ──────
@@ -109,11 +228,20 @@ function parseLevel(levelDef) {
         case '7': rowArr[col] = T.PIPE_BL; break;
         case '8': rowArr[col] = T.PIPE_BR; break;
         case '%': rowArr[col] = T.SOLID_INVISIBLE; break;
+        case 'L': rowArr[col] = T.LAVA;         break;
+        case 'I': rowArr[col] = T.ICE;          break;
+        case 'S': rowArr[col] = T.SNOW;         break;
+        case 'D': rowArr[col] = T.DARK_BRICK;   break;
         // Spawn markers → air tile + spawn entry
-        case 'g': spawns.push({ type: SPAWN.GOOMBA, col, row }); break;
-        case 'k': spawns.push({ type: SPAWN.KOOPA,  col, row }); break;
-        case 'c': spawns.push({ type: SPAWN.COIN,   col, row }); break;
-        case 'w': spawns.push({ type: SPAWN_CRATE,  col, row }); break;
+        case 'g': spawns.push({ type: SPAWN.GOOMBA,    col, row }); break;
+        case 'k': spawns.push({ type: SPAWN.KOOPA,     col, row }); break;
+        case 'c': spawns.push({ type: SPAWN.COIN,      col, row }); break;
+        case 'w': spawns.push({ type: SPAWN_CRATE,     col, row }); break;
+        case 'f': spawns.push({ type: SPAWN.FIREBRO,   col, row }); break;
+        case 'i': spawns.push({ type: SPAWN.ICEGOOMBA, col, row }); break;
+        case 'l': spawns.push({ type: SPAWN.LIZARD,    col, row }); break;
+        case 'p': spawns.push({ type: SPAWN.FLYER,     col, row }); break;
+        case 'P': spawns.push({ type: 'MOVING_PLATFORM', col, row }); break;
         case 'X': goalCol = col; break;
         default:  break; // air
       }
@@ -240,6 +368,58 @@ export class Level {
       case T.PIPE_BR:  spr = Sprites.PIPE_BR(); break;
       case T.CLOUD_M:   spr = Sprites.CLOUD_M(); break;
       case T.SOLID_INVISIBLE: return; // invisible
+      case T.LAVA: {
+        const wave = Math.sin(this._qtimer * 0.18) * 3;
+        ctx.fillStyle = '#CC2200';
+        ctx.fillRect(sx, sy + 4, TILE, TILE - 4);
+        ctx.fillStyle = '#FF5500';
+        ctx.fillRect(sx, sy, TILE, 8);
+        ctx.fillStyle = '#FF9900';
+        ctx.fillRect(sx + 2,  sy + wave,     4, 6);
+        ctx.fillRect(sx + 10, sy + wave - 2, 4, 6);
+        ctx.fillRect(sx + 20, sy + wave + 1, 4, 6);
+        return;
+      }
+      case T.ICE: {
+        ctx.fillStyle = '#A8E8FF';
+        ctx.fillRect(sx, sy, TILE, TILE);
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillRect(sx, sy, TILE, 5);
+        ctx.fillRect(sx, sy, 3, TILE);
+        ctx.strokeStyle = '#70CCEE';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(sx, sy, TILE, TILE);
+        return;
+      }
+      case T.SNOW: {
+        ctx.fillStyle = '#C8DCEE';
+        ctx.fillRect(sx, sy, TILE, TILE);
+        ctx.fillStyle = '#F8FEFF';
+        ctx.fillRect(sx, sy, TILE, 6);
+        ctx.fillStyle = '#A8C0D8';
+        ctx.fillRect(sx, sy + TILE - 3, TILE, 3);
+        return;
+      }
+      case T.DARK_BRICK: {
+        ctx.fillStyle = '#443333';
+        ctx.fillRect(sx, sy, TILE, TILE);
+        ctx.strokeStyle = '#221111';
+        ctx.lineWidth = 1;
+        // Horizontal mortar
+        ctx.beginPath();
+        ctx.moveTo(sx, sy + TILE / 2);
+        ctx.lineTo(sx + TILE, sy + TILE / 2);
+        ctx.stroke();
+        // Vertical mortar (offset bricks)
+        const offset = (Math.floor(sy / TILE) % 2 === 0) ? TILE / 2 : 0;
+        ctx.beginPath();
+        ctx.moveTo(sx + offset, sy);
+        ctx.lineTo(sx + offset, sy + TILE / 2);
+        ctx.moveTo(sx + offset, sy + TILE / 2);
+        ctx.lineTo(sx + offset, sy + TILE);
+        ctx.stroke();
+        return;
+      }
       default: return;
     }
     if (spr) ctx.drawImage(spr, sx, sy);

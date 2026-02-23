@@ -53,6 +53,7 @@ export class Player {
     this.fireCooldown = 0;
 
     this._fireballs   = [];  // owned fireballs
+    this._onIce       = false; // set each frame by game.js hazard check
     this._prevY       = 0;
     this._spawnX      = spawnX;
     this._spawnY      = spawnY;
@@ -125,11 +126,13 @@ export class Player {
   _handleInput(input, dt) {
     const spd = input.run ? CFG.RUN_SPD : CFG.WALK_SPD;
     const airControl = 0.85;
+    const onIce = this._onIce ?? false;
+    const groundAccel = onIce ? 0.08 : 0.25;
 
     if (input.left) {
       const target = -spd;
       if (this.onGround) {
-        this.vx += (target - this.vx) * 0.25;
+        this.vx += (target - this.vx) * groundAccel;
       } else {
         this.vx += (target - this.vx) * 0.12 * airControl;
       }
@@ -137,15 +140,16 @@ export class Player {
     } else if (input.right) {
       const target = spd;
       if (this.onGround) {
-        this.vx += (target - this.vx) * 0.25;
+        this.vx += (target - this.vx) * groundAccel;
       } else {
         this.vx += (target - this.vx) * 0.12 * airControl;
       }
       this.facingRight = true;
     } else {
-      // Friction / deceleration
+      // Friction / deceleration – reduced on ice
+      const onIce = this._onIce ?? false;
       if (this.onGround) {
-        this.vx *= 0.72;
+        this.vx *= onIce ? 0.97 : 0.72;
       } else {
         this.vx *= 0.96;
       }

@@ -3,12 +3,12 @@
 // ============================================================
 
 import {
-  TILE, SPAWN, POWER, PSTATE, MSG, CANVAS_W, CANVAS_H, T,
+  TILE, SPAWN, POWER, PSTATE, MSG, CANVAS_W, CANVAS_H, T, HAZARD_TILES,
 } from './constants.js';
 import { Level, LEVEL_COUNT, SPAWN_CRATE } from './level.js';
 import { Player }             from './player.js';
 import { Camera }             from './camera.js';
-import { Goomba, Koopa, createEnemy } from './enemies.js';
+import { Goomba, Koopa, FireBro, IceGoomba, Lizard, Flyer, createEnemy } from './enemies.js';
 import {
   Coin, PowerUp, Particle, ScorePop, spawnBrickBreak,
 } from './collectibles.js';
@@ -114,7 +114,8 @@ export class Game {
     ];
 
     // Only host spawns enemies (authoritative)
-    this.enemies  = [];
+    this.enemies   = [];
+    this.platforms = [];  // moving platforms
     this.coins    = [];
     this.powerUps = [];
     this.particles = [];
@@ -160,13 +161,32 @@ export class Game {
     for (const sp of this.level.spawns) {
       switch (sp.type) {
         case SPAWN.GOOMBA:
-        case SPAWN.KOOPA: {
+        case SPAWN.KOOPA:
+        case SPAWN.FIREBRO:
+        case SPAWN.ICEGOOMBA:
+        case SPAWN.LIZARD:
+        case SPAWN.FLYER: {
           const e = createEnemy(sp.type, sp.col, sp.row);
           if (e) this.enemies.push(e);
           break;
         }
         case SPAWN.COIN: {
           this.coins.push(new Coin(sp.col * TILE + 8, sp.row * TILE, false));
+          break;
+        }
+        case 'MOVING_PLATFORM': {
+          const px = sp.col * TILE;
+          const py = (sp.row - 1) * TILE;
+          this.platforms.push({
+            x:      px,
+            y:      py,
+            w:      72,
+            h:      14,
+            startX: Math.max(0, px - 96),
+            endX:   Math.min(this.level.widthPx - 72, px + 96),
+            speed:  1.4,
+            dir:    1,
+          });
           break;
         }
         // QBLOCK item spawns handled when blocks are hit
@@ -241,6 +261,12 @@ export class Game {
           remoteP.grappleHook.applyToPlayer(remoteP);
           if (remoteP.grappleHook.dead) remoteP.grappleHook = null;
         }
+      }
+
+      // Update moving platforms
+      for (const plat of this.platforms) {
+        plat.x += plat.speed * plat.dir;
+        if (plat.x >= plat.endX || plat.x <= plat.startX) plat.dir *= -1;
       }
 
       // Update enemies
@@ -360,6 +386,40 @@ export class Game {
         }
       }
 
+      // Player ↔ moving platforms
+      player._onIce = false;
+      for (const plat of this.platforms) {
+        const pBottom = player.y + player.h;
+        const platTop = plat.y;
+        if (
+          player.x + player.w > plat.x &&
+          player.x < plat.x + plat.w &&
+          pBottom >= platTop - 4 &&
+          pBottom <= platTop + 8 &&
+          player.vy >= 0
+        ) {
+          player.y = platTop - player.h;
+          player.vy = 0;
+          player.onGround = true;
+          player.x += plat.speed * plat.dir;
+        }
+      }
+
+      // Lava hazard
+      if (!player.dead && player.invuln <= 0) {
+        const footX  = Math.floor((player.x + player.w / 2) / TILE);
+        const footY  = Math.floor((player.y + player.h + 2) / TILE);
+        const underT = this.level.get(footX, footY);
+        if (HAZARD_TILES.has(underT)) {
+          player.hurt();
+          if (this.isHost && this.net) this.net.send({ type: MSG.EVENT, event: 'HURT', pid: player.id });
+        }
+        // Ice friction flag
+        if (underT === T.ICE || this.level.get(footX, footY - 1) === T.ICE) {
+          player._onIce = true;
+        }
+      }
+
       // Player ↔ enemies
       for (const enemy of this.enemies) {
         if (enemy.dead || enemy.remove) continue;
@@ -367,9 +427,13 @@ export class Game {
 
         if (stompCheck(player, enemy)) {
           // Stomp
-          let pts = 0;
-          if (enemy instanceof Goomba) pts = enemy.stomp();
-          else if (enemy instanceof Koopa) pts = enemy.stomp(player);
+          const pts = enemy.stomp ? enemy.stomp(player) : 0;
+
+          // IceGoomba: freeze effect on stomp
+          if (enemy instanceof IceGoomba && !enemy._frozePlayer) {
+            enemy._frozePlayer = true;
+            player._onIce = true;
+          }
 
           player.vy = -8;  // bounce
           player.stompGrace = 12; // ~12 frames of immunity after stomp
@@ -383,9 +447,27 @@ export class Game {
         } else if (enemy instanceof Koopa && enemy.shellMoving) {
           // Shell hurts player
           player.hurt();
+        } else if (enemy instanceof IceGoomba && !enemy.dead) {
+          // IceGoomba touch freezes briefly
+          player._onIce = true;
+          player.hurt();
+          if (this.isHost && this.net) this.net.send({ type: MSG.EVENT, event: 'HURT', pid: player.id });
         } else if (!enemy.dead) {
           player.hurt();
           if (this.isHost && this.net) this.net.send({ type: MSG.EVENT, event: 'HURT', pid: player.id });
+        }
+      }
+
+      // FireBro fireballs ↔ player
+      for (const enemy of this.enemies) {
+        if (!(enemy instanceof FireBro)) continue;
+        for (const fb of enemy.getProjectiles()) {
+          const fbRect = { x: fb.x - fb.r, y: fb.y - fb.r, w: fb.r * 2, h: fb.r * 2 };
+          if (overlaps(player, fbRect) && player.invuln <= 0 && !player.dead) {
+            fb.life = 0;
+            player.hurt();
+            if (this.isHost && this.net) this.net.send({ type: MSG.EVENT, event: 'HURT', pid: player.id });
+          }
         }
       }
 
@@ -609,8 +691,12 @@ export class Game {
         let enemy = this.enemies.find(e => e.id === es.id);
         if (!enemy) {
           // Create new enemy
-          if (es.type === 'Goomba') enemy = new Goomba(es.x, es.y);
-          else if (es.type === 'Koopa') enemy = new Koopa(es.x, es.y);
+          if      (es.type === 'Goomba')    enemy = new Goomba(es.x, es.y);
+          else if (es.type === 'Koopa')     enemy = new Koopa(es.x, es.y);
+          else if (es.type === 'FireBro')   enemy = new FireBro(es.x, es.y);
+          else if (es.type === 'IceGoomba') enemy = new IceGoomba(es.x, es.y);
+          else if (es.type === 'Lizard')    enemy = new Lizard(es.x, es.y);
+          else if (es.type === 'Flyer')     enemy = new Flyer(es.x, es.y);
           if (enemy) { enemy.id = es.id; this.enemies.push(enemy); }
         }
         if (enemy) enemy.applyState(es);
@@ -1123,6 +1209,25 @@ export class Game {
 
     // Tiles
     this.level.draw(ctx, cam);
+
+    // Moving platforms
+    for (const plat of this.platforms) {
+      const px = plat.x - cam.x;
+      const py = plat.y - cam.y;
+      ctx.fillStyle = '#885522';
+      ctx.fillRect(px, py, plat.w, plat.h);
+      ctx.fillStyle = '#AA7744';
+      ctx.fillRect(px + 2, py + 2, plat.w - 4, 5);
+      // Grain lines
+      ctx.strokeStyle = '#663311';
+      ctx.lineWidth = 1;
+      for (let i = 12; i < plat.w; i += 14) {
+        ctx.beginPath();
+        ctx.moveTo(px + i, py);
+        ctx.lineTo(px + i, py + plat.h);
+        ctx.stroke();
+      }
+    }
 
     // Drawn physics objects (pencil creations)
     for (const o of this.drawnObjects) o.draw(ctx, cam);
