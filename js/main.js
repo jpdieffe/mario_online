@@ -1,112 +1,77 @@
 ﻿// ============================================================
-//  main.js    entry point: lobby UI + game loop bootstrap
+//  main.js  –  entry point: lobby UI + game loop bootstrap
 // ============================================================
 
 import { Game }    from './game.js';
 import { Network } from './network.js';
 import { Input }   from './input.js';
 
-//  DOM refs 
+// ── DOM refs ─────────────────────────────────────────────
 
-const lobbyEl       = document.getElementById('lobby');
-const gameEl        = document.getElementById('game-screen');
-const btnHost       = document.getElementById('btn-host');
-const btnJoin       = document.getElementById('btn-join');
-const btnRandom     = document.getElementById('btn-random');
-const hostNameInput = document.getElementById('host-name-input');
-const joinInput     = document.getElementById('join-input');
-const hostStatus    = document.getElementById('host-status');
-const joinStatus    = document.getElementById('join-status');
-const canvas        = document.getElementById('game-canvas');
+const lobbyEl    = document.getElementById('lobby');
+const gameEl     = document.getElementById('game-screen');
+const lobbyStatus = document.getElementById('lobby-status');
+const canvas     = document.getElementById('game-canvas');
 
-//  Globals 
+// ── Globals ───────────────────────────────────────────────
 
-let game    = null;
-let net     = null;
-let input   = null;
-let rafId   = null;
+let game  = null;
+let net   = null;
+let input = null;
+let rafId = null;
 
-//  Random room name 
+// ── Room cards ────────────────────────────────────────────
 
-const WORDS = [
-  'APPLE','BANANA','CASTLE','DRAGON','EARTH','FALCON','GRAPE',
-  'HONEY','ISLAND','JUNGLE','KOOPA','LEMON','MARIO','NOVA','OCEAN',
-  'PEACH','QUEST','RIVER','STORM','TOAD','ULTRA','VISTA','WATER',
-  'XENON','YOSHI','ZEBRA'
-];
-
-function randomRoom() {
-  return WORDS[Math.floor(Math.random() * WORDS.length)];
-}
-
-// Pre-fill host name on load
-hostNameInput.value = randomRoom();
-
-btnRandom.addEventListener('click', () => {
-  hostNameInput.value = randomRoom();
-  hostNameInput.focus();
+document.querySelectorAll('.room-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const roomName = card.dataset.room;
+    joinOrHost(roomName);
+  });
 });
 
-// Enter key shortcuts
-hostNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnHost.click(); });
-joinInput.addEventListener('keydown',     (e) => { if (e.key === 'Enter') btnJoin.click(); });
+// ── Join-or-host logic ────────────────────────────────────
+//
+// Try to JOIN first. If the room is empty (peer-unavailable),
+// automatically become the HOST instead.
 
-//  Lobby: Host flow 
-
-btnHost.addEventListener('click', () => {
-  const roomName = hostNameInput.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (!roomName) { setStatus(hostStatus, 'Enter a room name first.', true); return; }
-
-  setStatus(hostStatus, '');
-  btnHost.disabled = true;
-  btnJoin.disabled = true;
+function joinOrHost(roomName) {
+  document.querySelectorAll('.room-card').forEach(b => b.disabled = true);
+  setStatus('Connecting to ' + roomName + '…');
 
   net = new Network();
 
-  // Start game immediately using the room name
-  startGame(0, roomName);
-
+  // ── Attempt to join as Player 2 ──
   net.onConnected = () => {
-    if (game) game.onPeerJoined();
-  };
-
-  net.onError = (err) => {
-    console.warn('PeerJS error (non-fatal):', err.type);
-    if (game) game._peerCode = 'Room: ' + roomName + ' (solo  network error)';
-    else setStatus(hostStatus, 'Network error: ' + err.type, true);
-  };
-
-  net.host(roomName);
-});
-
-//  Lobby: Join flow 
-
-btnJoin.addEventListener('click', () => {
-  const roomName = joinInput.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (!roomName) { setStatus(joinStatus, 'Enter a room name first.', true); return; }
-
-  setStatus(joinStatus, 'Connecting to room ' + roomName + '');
-  btnHost.disabled = true;
-  btnJoin.disabled = true;
-
-  net = new Network();
-
-  net.onConnected = () => {
-    setStatus(joinStatus, 'Connected! Starting');
+    setStatus('Joined! Starting…');
     setTimeout(() => startGame(1, roomName), 600);
   };
 
   net.onError = (err) => {
-    setStatus(joinStatus, 'Could not connect: ' + err.type, true);
-    resetLobby();
-  };
+    if (err.type === 'peer-unavailable') {
+      // Room is empty — destroy the failed attempt and host instead
+      net.destroy();
+      net = new Network();
 
-  net.onDisconnected = () => {
-    if (game) showDisconnect();
+      net.onConnected = () => {
+        if (game) game.onPeerJoined();
+      };
+
+      net.onError = (e) => {
+        console.warn('Host network error:', e.type);
+        if (game) game._peerCode = 'Room: ' + roomName + ' (network error)';
+      };
+
+      setStatus('Room is empty — you are the host!');
+      startGame(0, roomName);
+      net.host(roomName);
+    } else {
+      setStatus('Error: ' + err.type, true);
+      resetLobby();
+    }
   };
 
   net.join(roomName);
-});
+}
 
 //  Game start 
 
@@ -169,13 +134,12 @@ function showDisconnect() {
   }
 }
 
-function setStatus(el, text, isError = false) {
-  el.textContent = text;
-  el.className   = 'status-msg' + (isError ? ' error' : '');
+function setStatus(text, isError = false) {
+  lobbyStatus.textContent = text;
+  lobbyStatus.className   = 'status-msg' + (isError ? ' error' : '');
 }
 
 function resetLobby() {
-  btnHost.disabled = false;
-  btnJoin.disabled = false;
-  if (net) { net.destroy?.(); net = null; }
+  document.querySelectorAll('.room-card').forEach(b => b.disabled = false);
+  if (net) { net.destroy(); net = null; }
 }

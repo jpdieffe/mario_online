@@ -28,7 +28,7 @@ body {
   border: 3px solid #e8c84a;
   border-radius: 16px;
   padding: 36px 44px;
-  max-width: 700px;
+  max-width: 480px;
   width: 100%;
   text-align: center;
   box-shadow: 0 0 40px rgba(232, 200, 74, 0.3);
@@ -54,106 +54,63 @@ body {
   letter-spacing: 1px;
 }
 
-/* Two-column layout */
-.lobby-columns {
-  display: flex;
-  align-items: flex-start;
-  gap: 0;
-}
-
-.lobby-col {
-  flex: 1;
-  padding: 0 24px;
-  text-align: center;
-}
-
-.lobby-col h2 {
-  font-size: 1.1rem;
-  color: #e8c84a;
-  margin-bottom: 8px;
-}
-
-.col-hint {
+/* Room list */
+.room-list-hint {
   color: #a890c8;
-  font-size: 0.8rem;
-  margin-bottom: 14px;
-  min-height: 32px;
-}
-
-.lobby-divider {
-  color: #6b5280;
   font-size: 0.85rem;
-  font-weight: 700;
-  padding: 0 8px;
-  align-self: center;
-  flex-shrink: 0;
+  margin-bottom: 24px;
 }
 
-/* Room name row: input + dice button */
-.room-row {
+.room-list {
   display: flex;
-  gap: 8px;
-  margin-bottom: 0;
+  gap: 16px;
+  justify-content: center;
+  margin-bottom: 20px;
 }
 
-.room-row input {
-  flex: 1;
-}
-
-/* Generic lobby inputs */
-.lobby-col input,
-.room-row input {
-  background: #120820;
+.room-card {
+  background: #1a0a2e;
   border: 2px solid #6b5280;
-  border-radius: 8px;
+  border-radius: 14px;
   color: #fff;
-  font-size: 1.1rem;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 22px 28px;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  min-width: 110px;
+}
+
+.room-card:hover:not(:disabled) {
+  border-color: #e8c84a;
+  background: #3d2b6e;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(232, 200, 74, 0.2);
+}
+
+.room-card:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+.room-icon {
+  display: block;
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+.room-name {
+  display: block;
   font-weight: 700;
+  font-size: 0.85rem;
   letter-spacing: 2px;
-  padding: 10px 14px;
-  width: 100%;
-  outline: none;
-  transition: border-color 0.2s;
-  text-transform: uppercase;
+  color: #e8c84a;
 }
-.lobby-col input:focus,
-.room-row input:focus { border-color: #e8c84a; }
-
-/* Dice / random button */
-.btn-icon {
-  background: #4a3270;
-  border: 2px solid #6b5280;
-  border-radius: 8px;
-  color: #fff;
-  cursor: pointer;
-  font-size: 1.1rem;
-  padding: 0 12px;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
-.btn-icon:hover { background: #5e4090; }
-
-/* Buttons */
-.btn-primary {
-  background: #e8350c;
-  border: none;
-  border-radius: 8px;
-  color: #fff;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 700;
-  padding: 12px 28px;
-  transition: background 0.15s, transform 0.1s;
-  width: 100%;
-  margin-top: 10px;
-}
-.btn-primary:hover { background: #ff4a1e; }
-.btn-primary:active { transform: scale(0.97); }
 
 .status-msg {
-  margin-top: 10px;
-  min-height: 20px;
-  font-size: 0.85rem;
+  min-height: 22px;
+  font-size: 0.9rem;
   color: #78e87a;
 }
 .status-msg.error { color: #e87878; }
