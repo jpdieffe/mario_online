@@ -34,24 +34,25 @@ btnHost.addEventListener('click', () => {
   btnHost.disabled = true;
   btnJoin.disabled = true;
 
+  // Start the game IMMEDIATELY – don't wait for PeerJS
   net = new Network();
+  startGame(0, null);
 
+  // PeerJS initialises in the background; show code when ready
   net.onPeerId = (id) => {
+    // Update on-canvas code display inside the running game
+    if (game) game._peerCode = id;
+    // Also update the copy button text in case user ALT-tabs back
     peerIdDisplay.textContent = id;
-    hostCodeArea.classList.remove('hidden');
-    waitingMsg.textContent = 'Game started! Waiting for Player 2…';
-    // Start immediately – P2 can join later
-    startGame(0, id);
+  };
+
+  net.onConnected = () => {
+    if (game) game.onPeerJoined();
   };
 
   net.onError = (err) => {
-    if (game) {
-      // Already in-game, show non-fatal notice
-      console.warn('PeerJS error:', err);
-    } else {
-      setStatus('Connection error: ' + err.type, true);
-      resetLobby();
-    }
+    console.warn('PeerJS error (non-fatal):', err.type);
+    if (game) game._peerCode = 'Network error – solo only';
   };
 
   net.host();
@@ -111,18 +112,15 @@ function startGame(playerIndex, peerCode = null) {
   game  = new Game(canvas, net, playerIndex);
 
   // Give the game the peer code so it can display it on-canvas
-  if (peerCode) game._peerCode = peerCode;
+  // (may be null at this point for host – it gets set later via onPeerId)
+  game._peerCode = peerCode ?? '…getting code…';
 
-  // When P2 connects mid-game, activate them
-  net.onConnected = () => {
-    waitingMsg.textContent = 'Player 2 connected!';
-    if (game) game.onPeerJoined();
-  };
-
-  // Forward disconnect
-  net.onDisconnected = () => {
-    if (game) showDisconnect();
-  };
+  // For the JOIN flow, wire up disconnect. Host flow already wired in click handler.
+  if (playerIndex === 1) {
+    net.onDisconnected = () => showDisconnect();
+  } else {
+    net.onDisconnected = () => showDisconnect();
+  }
 
   game.setInput(input);
   game.load(0);
