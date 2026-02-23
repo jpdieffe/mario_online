@@ -104,3 +104,44 @@ export function levelBoundaryCheck(entity, level) {
 
   return false;
 }
+/**
+ * Resolve an entity against a DrawObject (dynamic AABB block).
+ * Modifies both entity and obj in-place.
+ * Returns true if they overlapped.
+ */
+export function resolveEntityVsObj(entity, obj) {
+  if (obj.dead) return false;
+  // Broad AABB test
+  if (entity.x + entity.w <= obj.x || entity.x >= obj.x + obj.w) return false;
+  if (entity.y + entity.h <= obj.y || entity.y >= obj.y + obj.h) return false;
+
+  const overlapL = (entity.x + entity.w) - obj.x;
+  const overlapR = (obj.x + obj.w) - entity.x;
+  const overlapT = (entity.y + entity.h) - obj.y;
+  const overlapB = (obj.y + obj.h) - entity.y;
+
+  const minX = Math.min(overlapL, overlapR);
+  const minY = Math.min(overlapT, overlapB);
+
+  if (minY <= minX) {
+    if (overlapT < overlapB) {
+      // Entity coming from above → land on top
+      entity.y = obj.y - entity.h;
+      if (entity.vy > 0) entity.vy = 0;
+      entity.onGround = true;
+      // Transfer a little push force to the obj
+      obj.vx += entity.vx * 0.08;
+    } else {
+      entity.y = obj.y + obj.h;
+      if (entity.vy < 0) entity.vy = 0;
+    }
+  } else {
+    const push = (overlapL < overlapR ? -1 : 1);
+    entity.x += push * minX;
+    // Kick the obj in the same direction with some of entity's momentum
+    obj.vx += -push * Math.abs(entity.vx) * 0.5 + entity.vx * 0.2;
+    entity.vx = 0;
+    entity.hitWall = true;
+  }
+  return true;
+}

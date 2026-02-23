@@ -31,11 +31,12 @@ export const T = {
   CLOUD_R: 11,
   SKY:    12, // decorative sky tile (non-solid)
   SOLID_INVISIBLE: 13,
+  DRAWN:  14,  // pencil-drawn tile (solid, colored)
 };
 
 // Which tiles are solid
 export const SOLID_TILES = new Set([T.GROUND, T.BRICK, T.QBLOCK, T.QUSED,
-  T.PIPE_TL, T.PIPE_TR, T.PIPE_BL, T.PIPE_BR, T.SOLID_INVISIBLE]);
+  T.PIPE_TL, T.PIPE_TR, T.PIPE_BL, T.PIPE_BR, T.SOLID_INVISIBLE, T.DRAWN]);
 
 // Spawn types in level data
 export const SPAWN = {

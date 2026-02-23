@@ -115,6 +115,7 @@ function startGame(playerIndex, roomName = null) {
   gameEl.classList.remove('hidden');
 
   input = new Input();
+  input.attachCanvas(canvas);
   game  = new Game(canvas, net, playerIndex);
 
   // Show human-readable room name on canvas
@@ -148,6 +149,7 @@ if (new URLSearchParams(location.search).get('solo') === '1') {
   gameEl.classList.remove('hidden');
 
   input = new Input();
+  input.attachCanvas(canvas);
   game  = new Game(canvas, null, 0);
   game.setInput(input);
   game.load(0);

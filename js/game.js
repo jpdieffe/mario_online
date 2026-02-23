@@ -3,17 +3,22 @@
 // ============================================================
 
 import {
-  TILE, SPAWN, POWER, PSTATE, MSG, CANVAS_W, CANVAS_H,
+  TILE, SPAWN, POWER, PSTATE, MSG, CANVAS_W, CANVAS_H, T,
 } from './constants.js';
-import { Level, LEVEL_COUNT } from './level.js';
+import { Level, LEVEL_COUNT, SPAWN_CRATE } from './level.js';
 import { Player }             from './player.js';
 import { Camera }             from './camera.js';
 import { Goomba, Koopa, createEnemy } from './enemies.js';
 import {
   Coin, PowerUp, Particle, ScorePop, spawnBrickBreak,
 } from './collectibles.js';
-import { overlaps, stompCheck }       from './physics.js';
+import { overlaps, stompCheck, resolveEntityVsObj } from './physics.js';
 import { preloadSprites, Sprites }    from './sprites.js';
+import {
+  ITEM, ITEM_ICON, CRATE_DROPS,
+  WeaponCrate, Bullet, Rocket, GrenadeProj, Explosion,
+  GrappleHook, SwordSwing, DrawObject,
+} from './items.js';
 
 const STATE = {
   LOADING: 'loading',
@@ -58,6 +63,13 @@ export class Game {
     if (this.net) {
       this.net.onMessage = (msg) => this._handleNetMsg(msg);
     }
+
+    // Item system state
+    this.weaponCrates   = [];
+    this.projectileList = [];
+    this.explosions     = [];
+    this.drawnObjects   = [];
+    this._pencilState   = { drawing: false, pts: [], minX: 0, maxX: 0, minY: 0, maxY: 0 };
   }
 
   setInput(inputInstance) {
@@ -103,9 +115,26 @@ export class Game {
     this.particles = [];
     this.scorePops = [];
 
+    // Item system – reset each level load
+    this.weaponCrates   = [];
+    this.projectileList = [];
+    this.explosions     = [];
+    this.drawnObjects   = [];
+    this._pencilState   = { drawing: false, pts: [], minX: 0, maxX: 0, minY: 0, maxY: 0 };
+    // Reset player item state
+    for (const p of this.players ?? []) {
+      p.inventory   = [];
+      p.activeSlot  = 0;
+      p.grappleHook = null;
+      p._gunTimer   = 0;
+      p._swordCooldown = 0;
+    }
+
     if (this.isHost) {
       this._spawnLevelEntities();
     }
+    // Weapon crates are visual – spawn on both sides
+    this._spawnWeaponCrates();
 
     this._state = STATE.PLAYING;
     this._winTimer = 0;
@@ -128,6 +157,14 @@ export class Game {
           break;
         }
         // QBLOCK item spawns handled when blocks are hit
+      }
+    }
+  }
+
+  _spawnWeaponCrates() {
+    for (const sp of this.level.spawns) {
+      if (sp.type === SPAWN_CRATE) {
+        this.weaponCrates.push(new WeaponCrate(sp.col * TILE + 2, (sp.row - 1) * TILE));
       }
     }
   }
@@ -155,10 +192,42 @@ export class Game {
     // Update local player with local input
     localP.update(this._applyInputSnap(localP, localSnap), this.level);
 
+    // ── Item system (local player) ──────────────────────────────
+    if (this._localInput) {
+      // Sync active slot (scroll / number keys)
+      localP.activeSlot = Math.min(
+        this._localInput.slot,
+        Math.max(0, localP.inventory.length - 1),
+      );
+      // Compute world-space mouse angle
+      const pcx = localP.x + localP.w / 2 - this.camera.x;
+      const pcy = localP.y + localP.h / 2 - this.camera.y;
+      this._localInput.mouseAngle = Math.atan2(
+        this._localInput.mouseY - pcy,
+        this._localInput.mouseX - pcx,
+      );
+      this._processLocalItems(localP, this._localInput);
+      // Pencil drawing
+      this._handlePencil(localP, this._localInput);
+    }
+    // Grapple hook update for local player
+    if (localP.grappleHook) {
+      localP.grappleHook.update(this.level);
+      localP.grappleHook.applyToPlayer(localP);
+      if (localP.grappleHook.dead) localP.grappleHook = null;
+    }
+
     if (this.isHost) {
       // Host: update remote player only when someone is connected
       if (this.peerConnected) {
         remoteP.update(this._applyInputSnap(remoteP, this._remoteInput), this.level);
+        // Item system for remote player (host is authoritative)
+        this._processRemoteItems(remoteP, this._remoteInput);
+        if (remoteP.grappleHook) {
+          remoteP.grappleHook.update(this.level);
+          remoteP.grappleHook.applyToPlayer(remoteP);
+          if (remoteP.grappleHook.dead) remoteP.grappleHook = null;
+        }
       }
 
       // Update enemies
@@ -209,6 +278,13 @@ export class Game {
     this.coins     = this.coins.filter(c => !c.dead);
     this.particles = this.particles.filter(p => !p.dead);
     this.scorePops = this.scorePops.filter(s => !s.dead);
+
+    // ── Item world ────────────────────────────────────────────
+    this._updateProjectileList();
+    for (const c of this.weaponCrates) c.update(1);
+    this._checkCratePickups();
+    this._updateDrawnObjects();
+
 
     this.level.update(1);
     // Only follow active players (don't let inactive P2 drag camera)
@@ -314,6 +390,63 @@ export class Game {
       for (const enemy of this.enemies) {
         if (enemy === koopa || enemy.dead) continue;
         if (overlaps(koopa, enemy)) enemy.kill();
+      }
+    }
+
+    // Projectiles ↔ enemies  (runs on both sides so client feels responsive)
+    for (const proj of this.projectileList) {
+      if (proj.dead) continue;
+      for (const enemy of this.enemies) {
+        if (enemy.dead || enemy.remove) continue;
+        const ex = enemy.x + enemy.w / 2;
+        const ey = enemy.y + enemy.h / 2;
+        if (proj instanceof SwordSwing) {
+          if (!proj._hitIds) proj._hitIds = new Set();
+          if (proj.hitsPoint(ex, ey) && !proj._hitIds.has(enemy.id)) {
+            proj._hitIds.add(enemy.id);
+            const pts = enemy.kill();
+            if (pts > 0) {
+              this._addScorePop(enemy.x, enemy.y, String(pts));
+            }
+          }
+        } else if (proj instanceof Bullet) {
+          if (overlaps(proj, enemy)) {
+            proj.dead = true;
+            const pts = enemy.kill();
+            if (pts > 0) this._addScorePop(enemy.x, enemy.y, String(pts));
+          }
+        } else if (proj instanceof Rocket || proj instanceof GrenadeProj) {
+          if (overlaps(proj, enemy)) {
+            proj._exploded = true;
+            proj.dead = true;
+            this._triggerExplosion(ex, ey);
+          }
+        }
+      }
+    }
+
+    // Explosions ↔ enemies
+    for (const expl of this.explosions) {
+      if (!expl._hitIds) expl._hitIds = new Set();
+      for (const enemy of this.enemies) {
+        if (enemy.dead || enemy.remove || expl._hitIds.has(enemy.id)) continue;
+        const ex = enemy.x + enemy.w / 2;
+        const ey = enemy.y + enemy.h / 2;
+        if (expl.overlapsPoint(ex, ey)) {
+          expl._hitIds.add(enemy.id);
+          const pts = enemy.kill();
+          if (pts > 0) this._addScorePop(enemy.x, enemy.y, String(pts));
+        }
+      }
+      // Explosions ↔ players
+      for (const player of this.players) {
+        if (player.dead || player.invuln > 0 || expl._hitIds.has('p' + player.id)) continue;
+        const px = player.x + player.w / 2;
+        const py = player.y + player.h / 2;
+        if (expl.overlapsPoint(px, py)) {
+          expl._hitIds.add('p' + player.id);
+          player.hurt();
+        }
       }
     }
   }
@@ -511,7 +644,291 @@ export class Game {
       case 'HURT':
         // Visual only on client
         break;
+      case 'DRAW_OBJ': {
+        const obj = new DrawObject(msg.x, msg.y, msg.w, msg.h, msg.pts);
+        this.drawnObjects.push(obj);
+        break;
+      }
+      case 'CRATE_PICKUP': {
+        // Mark the crate dead on client; item is applied to player via state sync
+        const crate = this.weaponCrates.find(c => c.id === msg.cid);
+        if (crate) crate.dead = true;
+        this.weaponCrates = this.weaponCrates.filter(c => !c.dead);
+        // Also tentatively add item in case state sync hasn't landed yet
+        const player = this.players[msg.pid];
+        if (player) player.addItem(msg.item);
+        break;
+      }
     }
+  }
+
+  // ── ITEM SYSTEM ───────────────────────────────────────────
+
+  _processLocalItems(player, input) {
+    this._tickItemCooldowns(player);
+    const slot = player.getActiveSlot();
+    if (!slot) return;
+    const angle = input.mouseAngle ?? 0;
+    if (slot.type === ITEM.MACHINE_GUN) {
+      if (input.mouseDown && player._gunTimer <= 0) {
+        this._fireItem(player, slot, angle);
+        player._gunTimer = 4;
+      }
+    } else if (slot.type === ITEM.PENCIL) {
+      // handled by _handlePencil
+    } else {
+      if (input.mouseClicked) this._fireItem(player, slot, angle);
+    }
+  }
+
+  _processRemoteItems(player, remoteInput) {
+    this._tickItemCooldowns(player);
+    const slot = player.getActiveSlot();
+    if (!slot) return;
+    const angle = remoteInput.mouseAngle ?? 0;
+    if (slot.type === ITEM.MACHINE_GUN) {
+      if (remoteInput.mouseDown && player._gunTimer <= 0) {
+        this._fireItem(player, slot, angle);
+        player._gunTimer = 4;
+      }
+    } else if (slot.type !== ITEM.PENCIL) {
+      if (remoteInput.mouseClicked) this._fireItem(player, slot, angle);
+    }
+  }
+
+  _tickItemCooldowns(player) {
+    if (player._gunTimer > 0)   player._gunTimer--;
+    if (player._swordCooldown > 0) player._swordCooldown--;
+  }
+
+  _fireItem(player, slot, angle) {
+    const cx = player.x + player.w / 2;
+    const cy = player.y + player.h / 2;
+
+    switch (slot.type) {
+      case ITEM.MACHINE_GUN: {
+        const b = new Bullet(cx, cy, angle);
+        this.projectileList.push(b);
+        slot.consume();
+        if (slot.ammo <= 0) player.inventory.splice(player.activeSlot, 1);
+        break;
+      }
+      case ITEM.ROCKET: {
+        const r = new Rocket(cx, cy, angle);
+        this.projectileList.push(r);
+        slot.consume();
+        if (slot.ammo <= 0) player.inventory.splice(player.activeSlot, 1);
+        break;
+      }
+      case ITEM.GRENADE: {
+        const speed = 8;
+        const g = new GrenadeProj(cx, cy,
+          Math.cos(angle) * speed,
+          Math.sin(angle) * speed,
+        );
+        this.projectileList.push(g);
+        slot.consume();
+        if (slot.ammo <= 0) player.inventory.splice(player.activeSlot, 1);
+        break;
+      }
+      case ITEM.GRAPPLE: {
+        // Re-fire while hook is alive = detach
+        if (player.grappleHook && !player.grappleHook.dead) {
+          player.grappleHook.dead = true;
+          player.grappleHook = null;
+        } else {
+          const hook = new GrappleHook(cx, cy, angle);
+          player.grappleHook = hook;
+          // Don't add to projectileList; updated manually per-player
+        }
+        break;
+      }
+      case ITEM.SWORD: {
+        if (player._swordCooldown > 0) break;
+        const swing = new SwordSwing(cx, cy, angle);
+        this.projectileList.push(swing);
+        player._swordCooldown = 28;
+        break;
+      }
+    }
+  }
+
+  _triggerExplosion(x, y) {
+    const expl = new Explosion(x, y);
+    this.explosions.push(expl);
+  }
+
+  _handlePencil(player, input) {
+    if (player.getActiveSlot()?.type !== ITEM.PENCIL) {
+      if (this._pencilState.drawing) {
+        this._finishPencilStroke(player);
+      }
+      return;
+    }
+    const worldMX = input.mouseX + this.camera.x;
+    const worldMY = input.mouseY + this.camera.y;
+
+    if (input.mouseDown) {
+      if (!this._pencilState.drawing) {
+        this._pencilState = {
+          drawing: true,
+          pts: [[worldMX, worldMY]],
+          minX: worldMX, maxX: worldMX,
+          minY: worldMY, maxY: worldMY,
+        };
+      } else {
+        const ps = this._pencilState;
+        // Only add a point if moved enough (4 px threshold)
+        const last = ps.pts[ps.pts.length - 1];
+        const dx = worldMX - last[0];
+        const dy = worldMY - last[1];
+        if (dx * dx + dy * dy >= 16) {
+          ps.pts.push([worldMX, worldMY]);
+          ps.minX = Math.min(ps.minX, worldMX);
+          ps.maxX = Math.max(ps.maxX, worldMX);
+          ps.minY = Math.min(ps.minY, worldMY);
+          ps.maxY = Math.max(ps.maxY, worldMY);
+        }
+      }
+    } else if (this._pencilState.drawing) {
+      this._finishPencilStroke(player);
+    }
+  }
+
+  _finishPencilStroke(player) {
+    const ps = this._pencilState;
+    if (ps.pts.length >= 2) {
+      const w = Math.max(ps.maxX - ps.minX, 4);
+      const h = Math.max(ps.maxY - ps.minY, 4);
+      const relPts = ps.pts.map(([x, y]) => [x - ps.minX, y - ps.minY]);
+      const obj = new DrawObject(ps.minX, ps.minY, w, h, relPts);
+      this.drawnObjects.push(obj);
+      // Broadcast to peer
+      if (this.net && this.peerConnected) {
+        this.net.send({
+          type: MSG.EVENT, event: 'DRAW_OBJ',
+          x: ps.minX, y: ps.minY, w, h, pts: relPts,
+        });
+      }
+    }
+    this._pencilState.drawing = false;
+    this._pencilState.pts = [];
+  }
+
+  _updateProjectileList() {
+    for (const p of this.projectileList) {
+      p.update(this.level);
+      // Rockets and grenades that exploded → spawn explosion
+      if ((p instanceof Rocket || p instanceof GrenadeProj) && p._exploded && !p._blastTriggered) {
+        p._blastTriggered = true;
+        this._triggerExplosion(p.x + (p.w ?? 0) / 2, p.y + (p.h ?? 0) / 2);
+      }
+    }
+    this.projectileList = this.projectileList.filter(p => !p.dead);
+
+    for (const e of this.explosions) e.update(1);
+    this.explosions = this.explosions.filter(e => !e.dead);
+  }
+
+  _checkCratePickups() {
+    // Only the host is authoritative for drops – client just marks dead via event
+    const activePlayers = this.peerConnected ? this.players : [this.players[this.localIdx]];
+    for (const player of activePlayers) {
+      if (player.dead) continue;
+      for (const crate of this.weaponCrates) {
+        if (crate.dead) continue;
+        if (overlaps(player, crate)) {
+          crate.dead = true;
+          if (this.isHost) {
+            const item = CRATE_DROPS[Math.floor(Math.random() * CRATE_DROPS.length)];
+            player.addItem(item);
+            this._addScorePop(crate.x, crate.y, ITEM_ICON[item] ?? '📦');
+            if (this.net && this.peerConnected) {
+              this.net.send({
+                type: MSG.EVENT, event: 'CRATE_PICKUP',
+                cid: crate.id, pid: player.id, item,
+              });
+            }
+          }
+        }
+      }
+    }
+    this.weaponCrates = this.weaponCrates.filter(c => !c.dead);
+  }
+
+  _updateDrawnObjects() {
+    for (const obj of this.drawnObjects) obj.update(this.level);
+    const activePlayers = this.peerConnected ? this.players : [this.players[this.localIdx]];
+    for (const obj of this.drawnObjects) {
+      for (const player of activePlayers) {
+        resolveEntityVsObj(player, obj);
+      }
+    }
+    // Keep drawn objects around until they fall out of bounds
+    this.drawnObjects = this.drawnObjects.filter(o => o.y < this.level.heightPx + 300);
+  }
+
+  _drawHotbar(ctx) {
+    const player = this.players[this.localIdx];
+    const slots  = player.inventory;
+    const active = player.activeSlot;
+    const N = 5;
+    const slotW = 44, slotH = 44, gap = 6;
+    const totalW = N * slotW + (N - 1) * gap;
+    const startX = (CANVAS_W - totalW) / 2;
+    const y = CANVAS_H - slotH - 8;
+
+    ctx.save();
+    for (let i = 0; i < N; i++) {
+      const sx = startX + i * (slotW + gap);
+      const slot = slots[i];
+      const isActive = (i === active);
+
+      // Background
+      ctx.fillStyle = isActive ? 'rgba(232,200,74,0.92)' : 'rgba(0,0,0,0.60)';
+      ctx.fillRect(sx, y, slotW, slotH);
+      ctx.strokeStyle = isActive ? '#FFD700' : '#777';
+      ctx.lineWidth   = isActive ? 3 : 1;
+      ctx.strokeRect(sx, y, slotW, slotH);
+
+      if (slot) {
+        // Icon
+        ctx.font = '20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(ITEM_ICON[slot.type] ?? '?', sx + slotW / 2, y + slotH / 2 + 7);
+        // Ammo
+        if (!slot.infinite) {
+          ctx.font = 'bold 9px sans-serif';
+          ctx.fillStyle = '#fff';
+          ctx.textAlign = 'center';
+          ctx.fillText(slot.ammo, sx + slotW / 2, y + slotH - 3);
+        }
+      }
+      // Slot number
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillStyle = isActive ? '#000' : '#bbb';
+      ctx.textAlign = 'left';
+      ctx.fillText(i + 1, sx + 3, y + 11);
+    }
+
+    // Pencil preview (if drawing)
+    if (this._pencilState.drawing && this._pencilState.pts.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = '#3A86FF';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const cam = this.camera;
+      for (let i = 0; i < this._pencilState.pts.length; i++) {
+        const [wx, wy] = this._pencilState.pts[i];
+        const sx2 = wx - cam.x;
+        const sy2 = wy - cam.y;
+        if (i === 0) ctx.moveTo(sx2, sy2); else ctx.lineTo(sx2, sy2);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
   }
 
   // ── RENDERING ────────────────────────────────────────────
@@ -542,6 +959,12 @@ export class Game {
     // Tiles
     this.level.draw(ctx, cam);
 
+    // Drawn physics objects (pencil creations)
+    for (const o of this.drawnObjects) o.draw(ctx, cam);
+
+    // Weapon crates
+    for (const c of this.weaponCrates) c.draw(ctx, cam);
+
     // Waiting-for-P2 overlay (host solo mode)
     if (this.isHost && !this.peerConnected && this._peerCode) {
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -568,6 +991,21 @@ export class Game {
     this.players[this.localIdx].draw(ctx, cam);
     if (this.peerConnected) this.players[1 - this.localIdx].draw(ctx, cam);
 
+    // Grapple hook ropes
+    for (const pl of this.players) {
+      if (pl.grappleHook) {
+        const pcx = pl.x + pl.w / 2;
+        const pcy = pl.y + pl.h / 2;
+        pl.grappleHook.draw(ctx, cam, pcx, pcy);
+      }
+    }
+
+    // Projectiles + sword swings
+    for (const p of this.projectileList) p.draw(ctx, cam);
+
+    // Explosions
+    for (const e of this.explosions) e.draw(ctx, cam);
+
     // Particles
     for (const p of this.particles) p.draw(ctx, cam);
 
@@ -588,6 +1026,11 @@ export class Game {
     if (this._state === STATE.WIN || this._state === STATE.GAMEOVER) {
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.fillRect(0, 0, w, h);
+    }
+
+    // Hotbar HUD (drawn on-canvas so it scales with the game)
+    if (this._state === STATE.PLAYING) {
+      this._drawHotbar(ctx);
     }
   }
 

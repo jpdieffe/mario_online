@@ -8,6 +8,7 @@ import {
 } from './constants.js';
 import { resolveEntity, levelBoundaryCheck } from './physics.js';
 import { Sprites, flipH } from './sprites.js';
+import { InventorySlot } from './items.js';
 
 const SMALL_W = 24;
 const SMALL_H = 28;
@@ -55,6 +56,43 @@ export class Player {
     this._prevY       = 0;
     this._spawnX      = spawnX;
     this._spawnY      = spawnY;
+
+    // Inventory (max 5 slots)
+    this.inventory   = [];   // array of InventorySlot
+    this.activeSlot  = 0;
+    // Grapple state (hook instance managed by game.js)
+    this.grappleHook = null;
+    // Sword cooldown
+    this._swordCooldown = 0;
+    // Machine gun rapid-fire timer
+    this._gunTimer = 0;
+  }
+
+  /** Add an item to inventory. Returns true if added (false if full). */
+  addItem(type) {
+    if (this.inventory.length >= 5) return false;
+    this.inventory.push(new InventorySlot(type));
+    return true;
+  }
+
+  /** Get active inventory slot object, or null. */
+  getActiveSlot() {
+    return this.inventory[this.activeSlot] ?? null;
+  }
+
+  /** Consume one ammo from active slot; removes slot if depleted. Returns consumed item type or null. */
+  consumeActiveAmmo() {
+    const slot = this.getActiveSlot();
+    if (!slot) return null;
+    const type = slot.type;
+    if (!slot.infinite) {
+      slot.ammo--;
+      if (slot.ammo <= 0) {
+        this.inventory.splice(this.activeSlot, 1);
+        if (this.activeSlot >= this.inventory.length) this.activeSlot = Math.max(0, this.inventory.length - 1);
+      }
+    }
+    return type;
   }
 
   get big() { return this.power >= POWER.BIG; }
@@ -339,6 +377,8 @@ export class Player {
       coins:       this.coins,
       lives:       this.lives,
       score:       this.score,
+      activeSlot:  this.activeSlot,
+      inventory:   this.inventory.map(s => ({ type: s.type, ammo: s.ammo })),
     };
   }
 
@@ -373,6 +413,10 @@ export class Player {
     this.coins       = s.coins  ?? this.coins;
     this.lives       = s.lives  ?? this.lives;
     this.score       = s.score  ?? this.score;
+    if (s.inventory) {
+      this.inventory  = s.inventory.map(i => { const sl = new InventorySlot(i.type); sl.ammo = i.ammo; return sl; });
+      this.activeSlot = s.activeSlot ?? this.activeSlot;
+    }
   }
 }
 

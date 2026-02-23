@@ -5,6 +5,9 @@
 import { T, SPAWN, SOLID_TILES, TILE } from './constants.js';
 import { Sprites } from './sprites.js';
 
+// Spawn type for weapon crates
+export const SPAWN_CRATE = 'CRATE';
+
 // ── Level string format ───────────────────────────────────
 // Each level is described as an array of strings (rows, top→bottom).
 // Width is determined by the length of the longest row.
@@ -46,7 +49,7 @@ const LEVELS = [
       /*r10*/ '       G  56                  56          5666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666',
       /*r11*/ '      G   78             g  g  78          7888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888',
       /*r12*/ 'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccg   X',
-      /*r13*/ 'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG',
+      /*r13*/ 'GGGGGGGGGGGGGGGGGGGGGGwGGGGGGGGGGGGGGGGwGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGwGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG',
       /*r14*/ 'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG',
     ],
     p1Spawn: { col: 2,  row: 11 },
@@ -110,6 +113,7 @@ function parseLevel(levelDef) {
         case 'g': spawns.push({ type: SPAWN.GOOMBA, col, row }); break;
         case 'k': spawns.push({ type: SPAWN.KOOPA,  col, row }); break;
         case 'c': spawns.push({ type: SPAWN.COIN,   col, row }); break;
+        case 'w': spawns.push({ type: SPAWN_CRATE,  col, row }); break;
         case 'X': goalCol = col; break;
         default:  break; // air
       }
@@ -223,6 +227,13 @@ export class Level {
       case T.BRICK:    spr = Sprites.BRICK();  break;
       case T.QBLOCK:   spr = this._qframe === 0 ? Sprites.QBLOCK_1() : Sprites.QBLOCK_2(); break;
       case T.QUSED:    spr = Sprites.QUSED();  break;
+      case T.DRAWN:
+        ctx.fillStyle = 'rgba(120, 60, 20, 0.85)';
+        ctx.fillRect(sx, sy, TILE, TILE);
+        ctx.strokeStyle = '#6B3800';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(sx, sy, TILE, TILE);
+        return;
       case T.PIPE_TL:  spr = Sprites.PIPE_TL(); break;
       case T.PIPE_TR:  spr = Sprites.PIPE_TR(); break;
       case T.PIPE_BL:  spr = Sprites.PIPE_BL(); break;
