@@ -320,11 +320,34 @@ export class Game {
       for (const evt of evts) {
         if (evt.type === 'BLOCK_HIT') {
           this._onBlockHit(evt.item, evt.col, evt.row, player);
+        } else if (evt.type === 'GAME_OVER') {
+          this._onGameOver();
         }
       }
     }
   }
 
+  _onGameOver() {
+    if (this._state === STATE.GAMEOVER) return;
+    this._state = STATE.GAMEOVER;
+    this._showMsg('Game Over!');
+    if (this.net) this.net.send({ type: MSG.EVENT, event: 'GAME_OVER' });
+    setTimeout(() => {
+      // Reset lives and restart from level 1
+      this._resetAndReload(0);
+      if (this.net) this.net.send({ type: MSG.RESTART, level: 0 });
+    }, 3000);
+  }
+
+  _resetAndReload(levelIndex) {
+    // Preserve peerConnected state across reset
+    const wasPeerConnected = this.peerConnected;
+    this.load(levelIndex);
+    this.peerConnected = wasPeerConnected;
+    // Give both players fresh lives
+    this.players[0].lives = 3;
+    this.players[1].lives = 3;
+  }
   _onBlockHit(item, col, row, player) {
     if (item === 'BRICK') {
       if (player.big) {
@@ -358,13 +381,11 @@ export class Game {
     this._state = STATE.WIN;
     this._showMsg('Level Clear! 🎉');
     if (this.net) this.net.send({ type: MSG.EVENT, event: 'WIN' });
-    setTimeout(() => this._nextLevel(), 3000);
-  }
-
-  _nextLevel() {
     const next = (this._levelIndex + 1) % LEVEL_COUNT;
-    this.load(next);
-    if (this.net) this.net.send({ type: MSG.RESTART, level: next });
+    setTimeout(() => {
+      this._resetAndReload(next);
+      if (this.net) this.net.send({ type: MSG.RESTART, level: next });
+    }, 3000);
   }
 
   _sendStateSync() {
@@ -475,6 +496,10 @@ export class Game {
       case 'WIN':
         this._state = STATE.WIN;
         this._showMsg('Level Clear! 🎉');
+        break;
+      case 'GAME_OVER':
+        this._state = STATE.GAMEOVER;
+        this._showMsg('Game Over!');
         break;
       case 'HURT':
         // Visual only on client

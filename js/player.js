@@ -220,6 +220,7 @@ export class Player {
     if (this.dead) return;
     this.dead     = true;
     this.deadTimer = 0;
+    this._deathHandled = false;
     this.vx = 0;
     this.vy = fallen ? 0 : -10;
     this._events = this._events || [];
@@ -230,16 +231,23 @@ export class Player {
     this.deadTimer += dt;
     this.vy = Math.min(this.vy + GRAVITY * dt, MAX_FALL);
     this.y += this.vy;
-    // Respawn after 3 s (180 frames)
-    if (this.deadTimer > 180 && this.lives > 0) {
-      this.lives--;
-      this.respawn();
+    if (this.deadTimer > 180 && !this._deathHandled) {
+      this._deathHandled = true;
+      if (this.lives > 1) {
+        this.lives--;
+        this.respawn();
+      } else {
+        this.lives = 0;
+        this._events = this._events || [];
+        this._events.push({ type: 'GAME_OVER' });
+      }
     }
   }
 
   respawn() {
     this.dead    = false;
     this.deadTimer = 0;
+    this._deathHandled = false;
     this.x       = this._spawnX;
     this.y       = this._spawnY;
     this.vx      = 0;
