@@ -13,7 +13,7 @@
     <div class="lobby-box">
       <h1>🍄 Mario Online Co-op</h1>
       <p class="subtitle">2-Player peer-to-peer platformer</p>
-      <p class="version">v2.2</p>
+      <p class="version">v2.3</p>
 
       <div class="lobby-columns">
 
@@ -56,6 +56,88 @@
     <canvas id="game-canvas"></canvas>
     <div id="game-msg" class="hidden"></div>
   </div>
+
+  <!-- ========== DEBUG PANEL ========== -->
+  <div id="debug-panel" style="
+    display:none; position:fixed; top:48px; right:12px; z-index:9999;
+    background:rgba(0,0,0,0.88); color:#fff; padding:14px 18px;
+    border-radius:10px; border:1px solid #555; font:13px monospace;
+    min-width:280px; box-shadow:0 4px 24px rgba(0,0,0,0.6);
+  ">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <b style="font-size:15px">🔧 Physics Debug</b>
+      <span style="font-size:10px;color:#aaa">Press ` to hide</span>
+    </div>
+    <div id="debug-rows"></div>
+  </div>
+
+  <script>
+    // Debug panel – syncs to window.CFG which is set by config.js ES module
+    const PARAMS = [
+      { key:'JUMP_VEL',         label:'Jump Velocity',     min:-12,  max:-1,   step:0.1  },
+      { key:'JUMP_HOLD_FRAMES', label:'Jump Hold Frames',  min:0,    max:30,   step:1    },
+      { key:'GRAVITY_RISE',     label:'Gravity Rise',      min:0.02, max:1.2,  step:0.01 },
+      { key:'GRAVITY_FALL',     label:'Gravity Fall',      min:0.02, max:1.2,  step:0.01 },
+      { key:'WALK_SPD',         label:'Walk Speed',        min:0.5,  max:10,   step:0.1  },
+      { key:'RUN_SPD',          label:'Run Speed',         min:0.5,  max:16,   step:0.1  },
+      { key:'MAX_FALL',         label:'Max Fall Speed',    min:2,    max:30,   step:0.5  },
+    ];
+
+    function buildPanel() {
+      const container = document.getElementById('debug-rows');
+      container.innerHTML = '';
+      for (const p of PARAMS) {
+        const val = (window.CFG && window.CFG[p.key] !== undefined) ? window.CFG[p.key] : '?';
+        const row = document.createElement('div');
+        row.style.cssText = 'display:grid;grid-template-columns:140px 1fr 60px;gap:6px;align-items:center;margin-bottom:6px;';
+
+        const lbl = document.createElement('span');
+        lbl.style.color = '#ccc';
+        lbl.textContent = p.label;
+
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.min = p.min; slider.max = p.max; slider.step = p.step;
+        slider.value = val;
+        slider.style.cssText = 'width:100%;accent-color:#60AAFF;';
+
+        const num = document.createElement('input');
+        num.type = 'number';
+        num.min = p.min; num.max = p.max; num.step = p.step;
+        num.value = val;
+        num.style.cssText = 'width:100%;background:#222;color:#fff;border:1px solid #555;border-radius:4px;padding:2px 4px;font:12px monospace;';
+
+        function update(v) {
+          const n = parseFloat(v);
+          if (isNaN(n)) return;
+          slider.value = n;
+          num.value = n;
+          if (window.CFG) window.CFG[p.key] = n;
+        }
+        slider.oninput = () => update(slider.value);
+        num.oninput = () => update(num.value);
+
+        row.append(lbl, slider, num);
+        container.append(row);
+      }
+    }
+
+    let panelBuilt = false;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === '`' || e.code === 'Backquote') {
+        const panel = document.getElementById('debug-panel');
+        const open = panel.style.display === 'none';
+        panel.style.display = open ? 'block' : 'none';
+        if (open && !panelBuilt) {
+          // Rebuild to pick up current CFG values
+          buildPanel();
+          panelBuilt = true;
+        } else if (open) {
+          buildPanel(); // refresh values
+        }
+      }
+    });
+  </script>
 
   <!-- PeerJS from CDN (no server required for gameplay) -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>

@@ -3,9 +3,9 @@
 // ============================================================
 
 import {
-  TILE, GRAVITY, MAX_FALL, WALK_SPD, RUN_SPD,
-  JUMP_VEL, JUMP_HOLD_FRAMES, GRAVITY_RISE, GRAVITY_FALL, POWER, PSTATE,
+  TILE, GRAVITY, POWER, PSTATE,
 } from './constants.js';
+import { CFG } from './config.js';
 import { resolveEntity, levelBoundaryCheck } from './physics.js';
 import { Sprites, flipH } from './sprites.js';
 import { InventorySlot } from './items.js';
@@ -123,7 +123,7 @@ export class Player {
   }
 
   _handleInput(input, dt) {
-    const spd = input.run ? RUN_SPD : WALK_SPD;
+    const spd = input.run ? CFG.RUN_SPD : CFG.WALK_SPD;
     const airControl = 0.85;
 
     if (input.left) {
@@ -155,12 +155,12 @@ export class Player {
     // Jump
     if (input.jump) {
       if (this.onGround) {
-        this.vy       = JUMP_VEL;
+        this.vy       = CFG.JUMP_VEL;
         this.onGround = false;
-        this.jumpHold = JUMP_HOLD_FRAMES;
+        this.jumpHold = CFG.JUMP_HOLD_FRAMES;
       } else if (this.jumpHold > 0) {
         // Hold jump for higher arc
-        this.vy += JUMP_VEL * 0.06;
+        this.vy += CFG.JUMP_VEL * 0.06;
         this.jumpHold -= dt;
       }
     } else {
@@ -180,8 +180,8 @@ export class Player {
 
   _applyGravity(dt) {
     // Asymmetric gravity: floaty on the way up, snappier on the way down
-    const g = this.vy < 0 ? GRAVITY_RISE : GRAVITY_FALL;
-    this.vy = Math.min(this.vy + g * dt, MAX_FALL);
+    const g = this.vy < 0 ? CFG.GRAVITY_RISE : CFG.GRAVITY_FALL;
+    this.vy = Math.min(this.vy + g * dt, CFG.MAX_FALL);
   }
 
   _resolveCollisions(level) {
