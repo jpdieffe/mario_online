@@ -223,6 +223,11 @@ export class Game {
     }
 
     // Update local player with local input
+    // If dead, track the other player's position so respawn lands on them
+    if (localP.dead && !remoteP.dead) {
+      localP._spawnX = remoteP.x;
+      localP._spawnY = remoteP.y;
+    }
     localP.update(this._applyInputSnap(localP, localSnap), this.level);
 
     // ── Item system (local player) ──────────────────────────────
@@ -253,6 +258,11 @@ export class Game {
     if (this.isHost) {
       // Host: update remote player only when someone is connected
       if (this.peerConnected) {
+        // If remote is dead, respawn them on top of local player
+        if (remoteP.dead && !localP.dead) {
+          remoteP._spawnX = localP.x;
+          remoteP._spawnY = localP.y;
+        }
         remoteP.update(this._applyInputSnap(remoteP, this._remoteInput), this.level);
         // Bug fix #1: sync remote player's active slot from their input
         // (host's copy of remoteP.activeSlot was stale, causing wrong weapon to fire)
