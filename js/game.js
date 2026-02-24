@@ -254,6 +254,14 @@ export class Game {
       // Host: update remote player only when someone is connected
       if (this.peerConnected) {
         remoteP.update(this._applyInputSnap(remoteP, this._remoteInput), this.level);
+        // Bug fix #1: sync remote player's active slot from their input
+        // (host's copy of remoteP.activeSlot was stale, causing wrong weapon to fire)
+        if (this._remoteInput.slot !== undefined) {
+          remoteP.activeSlot = Math.min(
+            this._remoteInput.slot,
+            Math.max(0, remoteP.inventory.length - 1),
+          );
+        }
         // Item system for remote player (host is authoritative)
         this._processRemoteItems(remoteP, this._remoteInput);
         if (remoteP.grappleHook) {
@@ -445,8 +453,10 @@ export class Game {
         } else if (player.stompGrace > 0) {
           // Still in post-stomp grace window – ignore contact
         } else if (enemy instanceof Koopa && enemy.shellMoving) {
-          // Shell hurts player
+          // Moving shell hurts player
           player.hurt();
+        } else if (enemy instanceof Koopa && enemy.shelled) {
+          // Bug fix #3: static shell — safe to stand next to, kick on next stomp
         } else if (enemy instanceof IceGoomba && !enemy.dead) {
           // IceGoomba touch freezes briefly
           player._onIce = true;
@@ -770,6 +780,36 @@ export class Game {
         this._receiveChat(msg.pid, msg.text);
         break;
       }
+      // Bug fix #2: host broadcasts its own projectile spawns so client can see them
+      case 'PROJ_SPAWN': {
+        // Don't duplicate local player's own projectiles (client already created them)
+        if (!this.isHost) {
+          switch (msg.projType) {
+            case ITEM.MACHINE_GUN:
+              this.projectileList.push(new Bullet(msg.x, msg.y, msg.angle));
+              break;
+            case ITEM.ROCKET:
+              this.projectileList.push(new Rocket(msg.x, msg.y, msg.angle));
+              break;
+            case ITEM.GRENADE:
+              this.projectileList.push(new GrenadeProj(msg.x, msg.y, msg.vx, msg.vy));
+              break;
+            case ITEM.SWORD: {
+              const sw = new SwordSwing(msg.x, msg.y, msg.angle);
+              this.projectileList.push(sw);
+              break;
+            }
+            case ITEM.GRAPPLE: {
+              const p = this.players[msg.pid ?? 0];
+              if (p) {
+                p.grappleHook = new GrappleHook(msg.x, msg.y, msg.angle);
+              }
+              break;
+            }
+          }
+        }
+        break;
+      }
     }
   }
 
@@ -939,11 +979,12 @@ export class Game {
     const angle = remoteInput.mouseAngle ?? 0;
     if (slot.type === ITEM.MACHINE_GUN) {
       if (remoteInput.mouseDown && player._gunTimer <= 0) {
-        this._fireItem(player, slot, angle);
+        // _broadcastOk=false: client already created this locally via _processLocalItems
+        this._fireItem(player, slot, angle, false);
         player._gunTimer = 4;
       }
     } else if (slot.type !== ITEM.PENCIL) {
-      if (remoteInput.mouseClicked) this._fireItem(player, slot, angle);
+      if (remoteInput.mouseClicked) this._fireItem(player, slot, angle, false);
     }
   }
 
@@ -952,9 +993,14 @@ export class Game {
     if (player._swordCooldown > 0) player._swordCooldown--;
   }
 
-  _fireItem(player, slot, angle) {
+  _fireItem(player, slot, angle, _broadcastOk = true) {
     const cx = player.x + player.w / 2;
     const cy = player.y + player.h / 2;
+    // Bug fix #2: broadcast this event to the peer so they see the visual.
+    // Only the HOST broadcasts (for its own weapons only — remote player's weapons
+    // are already created locally on the client via _processLocalItems).
+    const shouldBroadcast = _broadcastOk && this.isHost && this.peerConnected && this.net
+                            && player.id === this.localIdx;
 
     switch (slot.type) {
       case ITEM.MACHINE_GUN: {
@@ -962,6 +1008,8 @@ export class Game {
         this.projectileList.push(b);
         slot.consume();
         if (slot.ammo <= 0) player.inventory.splice(player.activeSlot, 1);
+        if (shouldBroadcast) this.net.send({ type: MSG.EVENT, event: 'PROJ_SPAWN',
+          projType: ITEM.MACHINE_GUN, x: cx, y: cy, angle });
         break;
       }
       case ITEM.ROCKET: {
@@ -969,17 +1017,20 @@ export class Game {
         this.projectileList.push(r);
         slot.consume();
         if (slot.ammo <= 0) player.inventory.splice(player.activeSlot, 1);
+        if (shouldBroadcast) this.net.send({ type: MSG.EVENT, event: 'PROJ_SPAWN',
+          projType: ITEM.ROCKET, x: cx, y: cy, angle });
         break;
       }
       case ITEM.GRENADE: {
         const speed = 8;
-        const g = new GrenadeProj(cx, cy,
-          Math.cos(angle) * speed,
-          Math.sin(angle) * speed,
-        );
+        const vx = Math.cos(angle) * speed;
+        const vy = Math.sin(angle) * speed;
+        const g = new GrenadeProj(cx, cy, vx, vy);
         this.projectileList.push(g);
         slot.consume();
         if (slot.ammo <= 0) player.inventory.splice(player.activeSlot, 1);
+        if (shouldBroadcast) this.net.send({ type: MSG.EVENT, event: 'PROJ_SPAWN',
+          projType: ITEM.GRENADE, x: cx, y: cy, vx, vy });
         break;
       }
       case ITEM.GRAPPLE: {
@@ -991,6 +1042,8 @@ export class Game {
           const hook = new GrappleHook(cx, cy, angle);
           player.grappleHook = hook;
           // Don't add to projectileList; updated manually per-player
+          if (shouldBroadcast) this.net.send({ type: MSG.EVENT, event: 'PROJ_SPAWN',
+            projType: ITEM.GRAPPLE, x: cx, y: cy, angle, pid: player.id });
         }
         break;
       }
@@ -999,6 +1052,8 @@ export class Game {
         const swing = new SwordSwing(cx, cy, angle);
         this.projectileList.push(swing);
         player._swordCooldown = 28;
+        if (shouldBroadcast) this.net.send({ type: MSG.EVENT, event: 'PROJ_SPAWN',
+          projType: ITEM.SWORD, x: cx, y: cy, angle });
         break;
       }
     }
