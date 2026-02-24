@@ -561,16 +561,8 @@ export class Game {
           if (pts > 0) this._addScorePop(enemy.x, enemy.y, String(pts));
         }
       }
-      // Explosions ↔ players
-      for (const player of this.players) {
-        if (player.dead || player.invuln > 0 || expl._hitIds.has('p' + player.id)) continue;
-        const px = player.x + player.w / 2;
-        const py = player.y + player.h / 2;
-        if (expl.overlapsPoint(px, py)) {
-          expl._hitIds.add('p' + player.id);
-          player.hurt();
-        }
-      }
+      // Explosions ↔ players — friendly fire disabled
+      // (removed: player.hurt() from explosions)
     }
   }
 

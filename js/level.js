@@ -153,8 +153,8 @@ const LEVELS = [
       /*r8*/  'GGGGGGGG                                                                                       GGGGGGGGGGs',
       /*r9*/  'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG',
     ],
-    p1Spawn: { col: 1, row: 7 },
-    p2Spawn: { col: 2, row: 7 },
+    p1Spawn: { col: 1, row: 4 },
+    p2Spawn: { col: 2, row: 4 },
   },
 
   // ── LEVEL  6 — Castle ───────────────────────────────────
@@ -177,8 +177,8 @@ const LEVELS = [
       /*r11*/ '%DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDc c c X%',
       /*r12*/ '%DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD%',
     ],
-    p1Spawn: { col: 2, row: 6 },
-    p2Spawn: { col: 3, row: 6 },
+    p1Spawn: { col: 4, row: 6 },
+    p2Spawn: { col: 5, row: 6 },
   },
 
   // ── LEVEL  7 — Bonus Gauntlet ────────────────────────────
