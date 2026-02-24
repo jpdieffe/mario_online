@@ -10,14 +10,22 @@ import { TILE, SOLID_TILES, T } from './constants.js';
  * Returns an array of {col, row} for any blocks that were hit from below.
  */
 export function resolveEntity(entity, level) {
-  // Horizontal move first
-  entity.x += entity.vx;
   const blocksHit = [];
-  resolveAxis(entity, level, 'x', blocksHit);
 
-  // Vertical move
-  entity.y += entity.vy;
-  resolveAxis(entity, level, 'y', blocksHit);
+  if (entity.vy < 0) {
+    // Moving upward: resolve vertical first so ceiling block-hits register
+    // before horizontal movement can push entity away from the tile.
+    entity.y += entity.vy;
+    resolveAxis(entity, level, 'y', blocksHit);
+    entity.x += entity.vx;
+    resolveAxis(entity, level, 'x', blocksHit);
+  } else {
+    // Falling or horizontal: horizontal first, then vertical
+    entity.x += entity.vx;
+    resolveAxis(entity, level, 'x', blocksHit);
+    entity.y += entity.vy;
+    resolveAxis(entity, level, 'y', blocksHit);
+  }
 
   return blocksHit;
 }
