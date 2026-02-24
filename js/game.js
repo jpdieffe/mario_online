@@ -146,14 +146,6 @@ export class Game {
     this._winTimer = 0;
     this._frame = 0;
 
-    // ── TEST: give both players one of every weapon ──────────
-    for (const p of this.players) {
-      for (const type of [ITEM.MACHINE_GUN, ITEM.ROCKET, ITEM.GRENADE, ITEM.GRAPPLE, ITEM.SWORD]) {
-        p.addItem(type);
-      }
-    }
-    // ─────────────────────────────────────────────────────────
-
     preloadSprites();
   }
 
