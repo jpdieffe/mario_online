@@ -84,6 +84,10 @@ class Enemy {
       vx:   +this.vx.toFixed(2),
       dead: this.dead,
       remove: this.remove,
+      // Koopa shell state (ignored by other enemy types)
+      shelled:     this.shelled     ?? false,
+      shellMoving: this.shellMoving ?? false,
+      h:           this.h,
     };
   }
 
@@ -93,6 +97,10 @@ class Enemy {
     this.vx     = s.vx ?? this.vx;
     this.dead   = s.dead;
     this.remove = s.remove;
+    // Koopa-specific shell state
+    if (s.shelled !== undefined)     this.shelled     = s.shelled;
+    if (s.shellMoving !== undefined) this.shellMoving = s.shellMoving;
+    if (s.h !== undefined)           this.h           = s.h;
   }
 }
 

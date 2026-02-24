@@ -390,18 +390,29 @@ export class Player {
   /** Apply auth state from host.
    * Hard-snap non-position fields; lerp x/y to avoid tab-switch teleporting. */
   applyState(s) {
-    // Position: lerp if close, snap if far (tab was hidden = large gap)
+    // Position correction from host snapshot.
+    // The host's snapshot is always a few frames stale due to network lag,
+    // so we must not blindly snap the client toward a position that's behind
+    // where they've already moved.
     const dx = s.x - this.x;
     const dy = s.y - this.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > 120) {
-      // Far off – hard snap (first sync or respawn)
+
+    if (dist > 160) {
+      // Very far off (tab hidden, respawn, etc.) – hard snap immediately
       this.x = s.x;
       this.y = s.y;
-    } else {
-      // Smooth correction
-      this.x += dx * 0.25;
-      this.y += dy * 0.25;
+    } else if (dist > 4) {
+      // Only pull x back if the server says we're ahead by more than one tile,
+      // OR if we're moving in the opposite direction to the discrepancy.
+      // This prevents continuous backwards drift from stale snapshots.
+      const movingAgainstX = (this.vx > 0 && dx < 0) || (this.vx < 0 && dx > 0);
+      const largeXErr = Math.abs(dx) > 40;
+      if (largeXErr || movingAgainstX || Math.abs(dx) < 2) {
+        this.x += dx * 0.08;
+      }
+      // Y is always corrected – prevents floating / sinking through floors
+      this.y += dy * 0.15;
     }
     this.vx   = s.vx;
     this.vy   = s.vy;
