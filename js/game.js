@@ -728,7 +728,12 @@ export class Game {
           pu._emerging = false;
           this.powerUps.push(pu);
         }
-        if (pu && pus.dead) pu.dead = true;
+        if (pu) {
+          // Always sync position from host so mushroom visibly moves on client
+          pu.x = pus.x;
+          pu.y = pus.y;
+          if (pus.dead) pu.dead = true;
+        }
       }
       const hostIds = new Set(msg.powerUps.map(p => p.id));
       this.powerUps = this.powerUps.filter(p => hostIds.has(p.id) || p.dead);
@@ -755,6 +760,12 @@ export class Game {
       case 'HURT':
         // Visual only on client
         break;
+      case 'POWERUP': {
+        // Immediately apply power-up to the correct player so sprite updates at once
+        const player = this.players[msg.pid];
+        if (player) player.grow(msg.power);
+        break;
+      }
       case 'DRAW_OBJ': {
         const obj = new DrawObject(msg.x, msg.y, msg.w, msg.h, msg.pts);
         this.drawnObjects.push(obj);
